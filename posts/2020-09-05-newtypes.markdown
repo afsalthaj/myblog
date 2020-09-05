@@ -1,0 +1,271 @@
+---
+title: Newtype in zio-prelude
+---
+
+For those who need to get straight into the code with explanations as comments, please feel free to jump to:
+
+https://scastie.scala-lang.org/afsalthaj/4rTuhrx6Tw6wohdyaP73bg/2
+
+Others, read on !
+In type-driven development, it is often necessary to distinguish between different interpretations of the same underlying type. For example, for the underlying type ‘integer’, there are multiple possible Monoids — that is, multiple ways to accumulate integers. One Monoid is to sum all the values, with the ‘empty’ value being 0. Another Monoid for integer multiplies all the values, so the ‘empty’ value has to be 1. (I give example implementations for these Monoids at the end of the article.)
+
+
+Even if you don’t know what a Monoid is yet, the classic way to distinguish between these interpretations of integer is to create a ‘newtype’ for each interpretation, called Sum and Mult. A newtype is a zero-cost (hopefully) specialisation of the underlying type. It looks and feels like an integer, but it has unique semantics, such as summing or multiplying. It gives power to the user to specify integer accumulation behaviour just by selecting the appropriate newtype.
+There are several ways of implementing newtypes, with varying levels of success at being ‘zero-cost’. Dotty will provide opaque types but I am yet to learn more about it, however, an initial implementation is here: https://scastie.scala-lang.org/aO450cLdTUyTpUseGkkbSA .
+Anyway, in the meantime, here is an approach to achieving that goal. (Taken from Spartan course, Jdgoes)
+It relies on the programming technique called existential types.
+
+### Existential Types
+
+
+``` scala
+
+ trait Foo {
+   type Type
+   def get: Type
+ }
+
+ object X {
+  val foo: Foo =
+    new Foo {
+      override type Type = Int
+      override def get: Type = 1
+    }
+ val int: Int = foo.get
+ // Error: type mismatch;
+ // found : foo.Type
+ // required: Int
+
+
+
+
+```
+
+As you see in this example, we know the value that foo holds is of the type Int, however Scala can’t know it is of the type Int. All it knows is, int has to be foo.Type.
+
+
+``` scala
+
+ val int1: foo.Type = foo.get // compiles
+ val int2: Int = foo.get // doesn’t compile
+
+
+```
+
+### Initial Approach
+
+
+The core idea is this. If Scala doesn’t know that foo.Type is Int , then why don’t we make use of this quirk of the language, and use it to define a newtype for Int ? That is foo.Type!
+
+``` scala
+ trait NewType[A] {
+  type Type
+  def wrap(a: A): Type
+  def unwrap(a: Type): A
+ }
+
+ def newType[A]: NewType[A] =
+  new NewType[A] {
+   type Type = A
+   override def wrap(a: A): Type = a
+   override def unwrap(a: Type): A = a
+  }
+
+```
+
+The key thing to notice here is that in the created NewType instance, Type and A are exactly the same type. The methods wrap and unwrap don’t have to do anything to convert between the types. Instead, the wrap and unwrap operations are just some type trickery to allow a zero-cost separation of ‘logical type’ (called Type) from the underlying real type (A).
+We can use this so implement an integer newtype that stipulates multiplication Monoid behaviour.
+
+
+``` scala
+
+ val Mult: NewType[Int] = newType[Int]
+ type Mult = Mult.Type
+ implicit val multiplyingMonoid =
+   new Monoid[Mult] {
+     override def empty: Mult = Mult.wrap(1)
+     override def combine(
+      x: Mult, y: Mult
+     ): Mult =  Mult.wrap(Mult.unwrap(x) * Mult.unwrap(y))
+   }
+
+
+```
+
+This works. There is a bit of boilerplate to wrap and unwrap the underlying integer type, but this doesn’t cost anything at runtime — it is just there to fool the compiler into treating Mult as a different type from Int, but not adding any memory or performance cost. The wrapping and unwrapping melts away in the compiled code.
+We could just call success here and start using it, but there is some ugliness involved in the solution. All that wrapping and unwrapping will soon get tedious.
+Is there a way to eliminate it?
+
+
+### Scala subtyping to get away from boilerplate
+
+Let’s make one small change.
+
+``` scala
+
+ trait NewType[A] {
+   type Type <: A // changed
+   def wrap(a: A): Type
+   def unwrap(a: Type): A
+ }
+
+
+```
+
+That constraint on Type says that Type can be anything, so long as it is a subtype of A. This gives us some advantage since a Type now is-an A. Essentially, there is no longer a need to unwrap. We can even delete that method.
+Let’s reimplement a Monoid for an Int newtype — say Sum this time.
+
+``` scala
+
+ val Sum: NewType[Int] = newType[Int]
+ type Sum = Sum.Type
+
+ implicit val summingMonoid =
+   new Monoid[Sum] {
+     override def empty: Sum = Sum.wrap(0)
+     override def combine(x: Sum, y: Sum): Sum = Sum.wrap(x + y)
+   }
+
+
+```
+
+Notice the combine method implementation is Sum.wrap(x + y). Without the subtyping, this would have been Sum.wrap(Sum.unwrap(x) + Sum.unwrap(y)). Because a Sum is an Int, we can use integer addition operators directly on them.
+
+### Ergonomics
+
+If we lose the redundant unwrap method, and rename wrap to Scala’s special ‘apply’ method, boilerplate is minimised to a reasonable level.
+
+``` scala
+
+ trait NewType[A] {
+   type Type <: A
+   def apply(a: A): Type
+ }
+
+ def newType[A]: NewType[A] =
+   new NewType[A] {
+   type Type = A
+   override def apply(a: A): Type = a
+ }
+
+ val Sum: NewType[Int] = newType[Int]
+ type Sum = Sum.Type
+
+ implicit val summingMonoid = new Monoid[Sum] {
+   override def empty: Sum = Sum(0)
+   override def combine(x: Sum, y: Sum): Sum = Sum(x + y)
+ }
+
+
+```
+
+#### Higher Kindedness
+
+Just as we benefit from the equivalence between Type and A, we can also get the same benefits for F[A]. Let’s add some methods to support type constructors (F[_]).
+
+``` scala
+ trait NewType[A] {
+   type Type <: A
+   def apply(a: A): Type
+   def toF[F[_]](fa: F[A]): F[Type]
+   def fromF[F[_]](fa: F[Type]): F[A]
+ }
+
+ def newType[A]: NewType[A] =
+   new NewType[A] {
+     type Type = A
+     override def apply(a: A): Type = a
+     override def toF[F[_]](fa: F[A]): F[Type] = fa
+     override def fromF[F[_]](fa: F[Type]): F[A] = fa
+  }
+
+ val Mult: NewType[Int] = newType[Int]
+ type Mult = Mult.Type
+
+
+```
+
+Now, to construct a list of Mult’s, instead of:
+
+``` scala
+
+  val list1: List[Mult] = List(1, 2, 3).map(Mult(_))
+
+
+```
+
+we can now:
+
+
+``` scala
+
+  val list2: List[Mult] = Mult.toF(List(1, 2, 3))
+
+
+```
+
+But it is not just for lists. It can allow sharing of typeclass implementations too. Consider a typeclass for equality.
+
+``` scala
+
+ trait Eq[A] {
+   def eqv(x: A, y: A): Boolean
+ }
+
+
+```
+
+But it is not just for lists. It can allow sharing of typeclass implementations too. Consider a typeclass for equality. To implement an instance for Mult manually:
+
+``` scala
+
+ implicit val eqMultManual: Eq[Mult] =
+   new Eq[Mult] {
+   override def eqv(x: Mult, y: Mult): Boolean = x == y
+ }
+
+
+```
+
+But Eq fits the type constructor signature F[_], so we can use NewType.toF on it too. If we already have an instance for Int, we can promote it to an instance for Mult:
+
+``` scala
+ implicit val eqInt: Eq[Int] = ???
+ implicit val eqMult: Eq[Mult] = Mult.toF(eqInt)
+
+ // …and use them:
+
+ val sameMult = implicitly[Eq[Mult]].eqv(Mult(1), Mult(1))
+ val sameInt = implicitly[Eq[Int]].eqv(1, 1)
+
+ //Similarly, we can ‘demote’ an instance of Eq[Mult] to Eq[Int], since Mult really is an Int under the covers.
+ implicit val eqMult: Eq[Mult] = ???
+ implicit val eqInt: Eq[Int] = Mult.fromF(eqMult)
+
+
+```
+
+### Type constructor ergonomics
+
+If the typeclass parameter is contravariant, we can omit the toF() call, in the same way we dropped the unwrap() method. If Eq[A] had been Eq[-A], we could have written:
+
+``` scala
+ implicit val eqInt: Eq[Int] = ???
+
+ implicit val eqMult: Eq[Mult] = Mult.toF(eqInt)
+
+ // If the typeclass parameter is covariant, the fromF method becomes redundant”
+ trait CovariantTypeclass[+A] { … }
+
+ implicit val eqMult: CovariantTypeclass[Mult] = ???
+ implicit val eqInt: CovariantTypeclass[Int] = Mult.fromF(eqMult)
+ implicit val eqInt2: CovariantTypeclass[Int] = eqMult // fromF not required
+ ….. etc
+
+
+```
+
+This is not the final cut by the way. A better module structure is defined for this new type mechanism in an upcoming library in zio world.
+Thanks to Leigh Perry (https://twitter.com/leigh_perry) for an in-depth proofread of the first version of my content. All of the detailed explanations are added by Leigh later on, which inturn made the original content more accessible.
+There is another write-up on the same concept which you don’t want to miss out: https://francistoth.github.io/2020/04/11/newtypes.html
+Thanks to John De Goes once again for the whole idea, and all this blog is adding some detail. I highly recommend John De Goes’s spartan session in patreon to see a different perspective towards simplifying functional programming in Scala. What you have seen above is just a very small portion of a series of 1–2 hrs session that happens weekly. I highly recommend these sessions for anyone out there who is keen to learn and contribute back to open source !
