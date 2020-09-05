@@ -111,26 +111,23 @@ and get the value without any sort of nested for comprehensions, and that’s al
 `Option` layered with `\/[Throwable, ?]` to one single effect OptionT that makes you feel like it is still an option and you are flatMapping over it.
 
 
-### Mechanism behind Monad Transformers (Skip it if you want to skip it)
+### Mechanism behind Monad Transformers (Optional Read)
 
-For those who want to know the mechanism behind monad transformers, you can easily identify it as composing monads, which is in fact a difficult thing to achieve if we have
-no enough information about the monads that are being composed.
-
-This part is going to get theoretical, and I will have a better detailed blog explaining them. For those who are not patient enough, feel free to read on.
+For those who want to know the mechanism behind monad transformers, you can consider it as composing monads, which is in fact is a difficult thing to achieve if we have.
 
 We have a type called Compose that can be constructed using two type constructors f and g. This means kind of compose is `(* -> *) -> (* -> *) -> (*) -> *`
 
 Let's spit out a few Haskell here because it's always good to get
 around understanding these concepts in Haskell.
 
-We are going to define `Compose` in Haskell and try to create instances of `Applicative`, `Functor` and `Monad` for `Compose`
+Let's define `Compose` and try to create instances of `Applicative`, `Functor` and `Monad` for `Compose`
 
 If you are not familiar with the syntax then all you need to understand here is `Compose[F[_], G[_], A]` cannot have an instance of
 `Monad` unless we know more about `G[_]`.
 
 ``` haskell
 
-// case class Compose[F[_], G[_], A](compose: F[G[A]])
+// case class Compose[F[_], G[_], A](value: F[G[A]])
 newtype Compose f g a =
   Compose (f (g a)) deriving (Show, Eq)
 
@@ -174,7 +171,7 @@ or in scala,
 
 ``` scala
 
-def flatMap (f: Compose[F[_], G[_], A], g: A => Compose[F[_], G[_], B): Compose[F[_], G[_], B] = ???
+def flatMap (f: Compose[F[_], G[_], A], g: A => Compose[F[_], G[_], B]): Compose[F[_], G[_], B] = ???
 
 
 ```
@@ -191,7 +188,7 @@ Compose(layered1).flatMap(_ => layered2)
 
 ```
 
-That said, let's dont' assume Compose useless for this reason. For instance, it has got a Traversable.
+That said, let's don't assume Compose useless for this reason. For instance, it has got a Traversable.
 
 ``` scala
 
@@ -213,13 +210,14 @@ The issue of composing monads is often addressed with a custom-written version o
 This thing is called a monad transformer.
 
 There is something more to it before we conclude.
+
 If you ever tried before to implement general monad composition, then you would have found that in order to implement join for nested monads F and G, you’d have to write a type such as F[G[F[G[A]]]=> F[G[A]] and that can’t be written generally. However, if G happens to have a traverse instance, we can sequence to turn G[F[_]] into F[G[_]], leading to F[F[G[G[A]]]], which in turn allow us to join the adjacent F layers as well as the adjacent G layers using their respective Monad instances. I am not going to explain how, but give it a try.
 
 
 ### Where to go from here ?
 
 It's good to stop here, because you already got the gist of what Monad Transfomres are, and how to use them. Refer to typelevel cats and scalaz documentations
-in Google if you are in Scala world. Also, take a look at ZIO and libraries that took a different approach towards Monad Transformers in Scala handling performance issues.
+in Google if you are in Scala world. Also, take a look at ZIO and it's libraries that took a different approach towards Monad Transformers in Scala handling performance issues.
 
 
 #### Hope you find the blog useful in solving your problems.
