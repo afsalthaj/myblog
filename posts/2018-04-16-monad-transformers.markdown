@@ -120,7 +120,13 @@ This part is going to get theoretical, and I will have a better detailed blog ex
 
 We have a type called Compose that can be constructed using two type constructors f and g. This means kind of compose is `(* -> *) -> (* -> *) -> (*) -> *`
 
+Let's spit out a few Haskell here because it's always good to get
+around understanding these concepts in Haskell.
+
 We are going to define `Compose` in Haskell and try to create instances of `Applicative`, `Functor` and `Monad` for `Compose`
+
+If you are not familiar with the syntax then all you need to understand here is `Compose[F[_], G[_], A]` cannot have an instance of
+`Monad` unless we know more about `G[_]`.
 
 ``` haskell
 
@@ -152,12 +158,7 @@ instance (Monad f, Monad g) =>
 
 ```
 
-I thought it's spitting out a few Haskell intentionally because it's always good to get
-around understanding these concepts in Haskell. If you are not familiar with the syntax
-then all you need to understand here is `Compose[F[_], G[_], A]` cannot have an instance of
-`Monad` unless we know more about `G[_]`.
-
-In the above example, our `Either[Throwable, Option[A]` (or `Throwable \/ Option[A]`) can be easily lifted to Compose
+In our example, which is  `Either[Throwable, Option[A]` (or `Throwable \/ Option[A]`) can be easily lifted to Compose
 and do functor (map) operations, and applicative operations, but not monadic operations.
 
 To detail it further, a monad instance of Compose requires defining a bind as given below:
@@ -204,14 +205,21 @@ val whatWeWant: IO[Compose[Throwable, Option[User]] =
 
 ```
 
-Consider this as the fact that, there isn't always a need of monad transformers to deal with composed effects.
+This also implies, there isn't always a need of monad transformers to deal with composed effects.
 
 #### Summary
 
-The issue of composing monads is often addressed with a custom-written version of each monad that’s specifically constructed for composition. This kind of thing is called a monad transformer. The OptionT transformer mentioned above composes Option with any other Monad having a traverse instance.
+The issue of composing monads is often addressed with a custom-written version of each monad that’s specifically constructed for composition.
+This thing is called a monad transformer.
 
-There is something more to it.
-If you ever tried before to implement general monad composition, then you would have found that in order to implement join for nested monads F and G, you’d have to write a type such as F[G[F[G[A]]]=> F[G[A]] and that can’t be written generally. However, if G happens to have a traverse instance, we can sequence to turn G[F[_]] into F[G[_]], leading to F[F[G[G[A]]]], which in turn allow us to join the adjacent F layers as well as the adjacent G layers using their respective Monad instances.
+There is something more to it before we conclude.
+If you ever tried before to implement general monad composition, then you would have found that in order to implement join for nested monads F and G, you’d have to write a type such as F[G[F[G[A]]]=> F[G[A]] and that can’t be written generally. However, if G happens to have a traverse instance, we can sequence to turn G[F[_]] into F[G[_]], leading to F[F[G[G[A]]]], which in turn allow us to join the adjacent F layers as well as the adjacent G layers using their respective Monad instances. I am not going to explain how, but give it a try.
+
+
+### Where to go from here ?
+
+It's good to stop here, because you already got the gist of what Monad Transfomres are, and how to use them. Refer to typelevel cats and scalaz documentations
+in Google if you are in Scala world. Also, take a look at ZIO and libraries that took a different approach towards Monad Transformers in Scala handling performance issues.
 
 
 #### Hope you find the blog useful in solving your problems.
