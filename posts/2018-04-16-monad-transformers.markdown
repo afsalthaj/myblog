@@ -34,9 +34,8 @@ In other words, it should return an Account under an effect — Option. Hence yo
 
 ``` scala
 
-def get[Account, Id](id : Id): Repository => Account = ???
-
-def get[Account, Id](id: Id): Respository => Option[Account] = ???
+  def get[Account, Id](id : Id): Repository => Account = ???
+  def get[Account, Id](id: Id): Respository => Option[Account] = ???
 
 
 ```
@@ -64,10 +63,10 @@ We wish the stacked effect was just acting as one single effect — one single M
 
 ``` scala
 
-trait Repository
-trait DatabaseException
+  trait Repository
+  trait DatabaseException
 
-def get[Account, Id](id: Id): Repository => DatabaseException \/ Option[Account] = ???
+  def get[Account, Id](id: Id): Repository => DatabaseException \/ Option[Account] = ???
 
 
 ```
@@ -78,29 +77,29 @@ We use scalaz’s `OptionT` monad transformer to depict the effect of returning 
 
 ``` scala
 
-sealed trait Account
-case object SavingsAccount extends Account
-case object InvestmentAccount extends Account
+  sealed trait Account
+  case object SavingsAccount extends Account
+  case object InvestmentAccount extends Account
 
 
-val optionalAccount: Option[Account] = Some(savingsAccount)
+  val optionalAccount: Option[Account] = Some(savingsAccount)
 
-// Practically this is not how you would end up having a throwable on left. This is just to allign the types.
-val optionalAccountWithEitherEffect: Throwable \/ Option[A] =
-  optionalAccount.right
+  // Practically this is not how you would end up having a throwable on left. This is just to allign the types.
+  val optionalAccountWithEitherEffect: Throwable \/ Option[A] =
+    optionalAccount.right
 
 
 ```
 
 ``` scala
 
-type EitherEffect[A] = Throwable \/ A
+  type EitherEffect[A] = Throwable \/ A
 
-val singleLayeredEffect =
-  OptionT[EitherEffect, Account] {  optionalAccountWithEitherEffect  }
+  val singleLayeredEffect =
+    OptionT[EitherEffect, Account] {  optionalAccountWithEitherEffect  }
 
-singleLayeredEffect.map { account => account.debit } // do some computation with account straight away
-// OptionT[EitherEffect, Account]
+  singleLayeredEffect.map { account => account.debit } // do some computation with account straight away
+  // OptionT[EitherEffect, Account]
 
 
 ```
@@ -127,31 +126,27 @@ If you are not familiar with the syntax then all you need to understand here is 
 
 ``` haskell
 
-// case class Compose[F[_], G[_], A](value: F[G[A]])
-newtype Compose f g a =
-  Compose (f (g a)) deriving (Show, Eq)
+  // case class Compose[F[_], G[_], A](value: F[G[A]])
+  newtype Compose f g a =
+    Compose (f (g a)) deriving (Show, Eq)
 
-
--- Functor instance for Compose
-instance (Functor f, Functor g) =>
+  instance (Functor f, Functor g) =>
     Functor (Compose f g) where
-  (<$>) f (Compose fga)  = Compose ((\ga -> f <$> ga)  <$> fga)
+      (<$>) f (Compose fga)  = Compose ((\ga -> f <$> ga)  <$> fga)
 
-instance (Applicative f, Applicative g) =>
-  Applicative (Compose f g) where
+  instance (Applicative f, Applicative g) =>
+    Applicative (Compose f g) where
 
-  pure a = Compose (pure (pure a))
-  (<*>) (Compose fgab) (Compose fga) = Compose (lift2 (<*>) fgab  fga)
+    pure a = Compose (pure (pure a))
+    (<*>) (Compose fgab) (Compose fga) = Compose (lift2 (<*>) fgab  fga)
 
--- Its impossible to implement bind, but if we know g is "Maybe" as an example, then its possible.
--- However when specialising G, it becomes Monad Transformers and not actually Compose.
--- Compose[F[_], Option, A] <=> OptionT[F[_], A]
+  -- Its impossible to implement bind, but if we know g is "Maybe" as an example, then its possible.
+  -- However when specialising G, it becomes Monad Transformers and not actually Compose.
+  -- Compose[F[_], Option, A] <=> OptionT[F[_], A]
 
-instance (Monad f, Monad g) =>
-  Monad (Compose f g) where
-  (>>=) =
-    error "Not possible"
-
+  instance (Monad f, Monad g) =>
+    Monad (Compose f g) where
+    (>>=) = error "Not possible"
 
 ```
 
@@ -162,7 +157,7 @@ To detail it further, a monad instance of Compose requires defining a bind as gi
 
 ``` haskell
 
-(>>=) :: (a -> Compose f g b) -> Compose f g a -> Compose f g b
+  (>>=) :: (a -> Compose f g b) -> Compose f g a -> Compose f g b
 
 
 ```
@@ -171,7 +166,7 @@ or in scala,
 
 ``` scala
 
-def flatMap (f: Compose[F[_], G[_], A], g: A => Compose[F[_], G[_], B]): Compose[F[_], G[_], B] = ???
+  def flatMap (f: Compose[F[_], G[_], A], g: A => Compose[F[_], G[_], B]): Compose[F[_], G[_], B] = ???
 
 
 ```
@@ -179,11 +174,12 @@ def flatMap (f: Compose[F[_], G[_], A], g: A => Compose[F[_], G[_], B]): Compose
 This means you cannot do
 
 ``` scala
-val layered1: Either[Throwable, Option[Int]]
 
-val layered2: Either[Throwable, Option[Long]]
+  val layered1: Either[Throwable, Option[Int]]
 
-Compose(layered1).flatMap(_ => layered2)
+  val layered2: Either[Throwable, Option[Long]]
+
+  Compose(layered1).flatMap(_ => layered2)
 
 
 ```
@@ -192,12 +188,12 @@ That said, let's don't assume Compose useless for this reason. For instance, it 
 
 ``` scala
 
-val layered: Either[Throwable, Option[Int]]
+  val layered: Either[Throwable, Option[Int]]
 
-def getUserFromDb(id: Int): IO[Either[Throwable, Option[User]]
+  def getUserFromDb(id: Int): IO[Either[Throwable, Option[User]]
 
-val whatWeWant: IO[Compose[Throwable, Option[User]] =
-  Compose(layered).traverse(getUserFromDb.map(Compose.apply))
+  val whatWeWant: IO[Compose[Throwable, Option[User]] =
+    Compose(layered).traverse(getUserFromDb.map(Compose.apply))
 
 
 ```
