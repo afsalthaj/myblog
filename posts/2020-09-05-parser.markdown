@@ -1,0 +1,10 @@
+---
+title : parser
+---
+
+``` haskell
+
+data Parser = P (Input -> String)
+
+
+```
