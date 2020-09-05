@@ -4,7 +4,6 @@ title : parser
 
 ``` haskell
 
-data Parser = P (Input -> String)
-
+data Parser = P (Input -> ParseResult a)
 
 ```
