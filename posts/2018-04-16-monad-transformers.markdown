@@ -5,12 +5,12 @@ title : Monad Transformers
 ## Monad Transformers in Scala
 
 This is a simplified explanation of Monad transformers in Scala. I highly recommend you reading my blog
-on "Birth on Monad Transformers through Compose" in Haskell once you get a gist of what monad transformer is from this blog.
+on "Birth of Monad Transformers through Compose" in Haskell once you get a gist of what monad transformer is from this blog.
 
 Let’s start with a question.
 
 Do you think the type List is a Monad? Yes, it has got a bind (flatMap) and unit (apply) method that
-satisfy the requirements to be monad + it follows monad laws. The monad list can be also be termed as an effect
+satisfy the requirements to be monad + it follows monad laws. The monad list can also be termed as an effect
 because “given a type A, lifting it (somehow) as List adds new capabilities to it, such that, we can now aggregate over A,
 find the sum of A and so on and so forth. The type A never had these capabilities when it was existing by itself, until
 we lifted it to become a List. That was a deep dive straight away. Let’s take a breath now and say — Well, if you lift your type to a Monadic Effect,
