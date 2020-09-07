@@ -112,14 +112,12 @@ and get the value without any sort of nested for comprehensions, and that’s al
 
 ### Mechanism behind Monad Transformers (Optional Read)
 
-For those who want to know the mechanism behind monad transformers, you can consider it as composing monads, which is in fact is a difficult thing to achieve if we have.
+We have a type called Compose that can be constructed using two type constructors f and g and a type a. This means `kind` of `Compose` is `(* -> *) -> (* -> *) -> (*) -> *`
 
-We have a type called Compose that can be constructed using two type constructors f and g. This means kind of compose is `(* -> *) -> (* -> *) -> (*) -> *`
-
-Let's spit out a few Haskell here because it's always good to get
+Let's spit out a few Haskell here showing what `Compose` is,  because it's always good to get
 around understanding these concepts in Haskell.
 
-Let's define `Compose` and try to create instances of `Applicative`, `Functor` and `Monad` for `Compose`
+We will create instances of `Applicative`, `Functor` and `Monad` for `Compose`
 
 If you are not familiar with the syntax then all you need to understand here is `Compose[F[_], G[_], A]` cannot have an instance of
 `Monad` unless we know more about `G[_]`.
@@ -171,29 +169,32 @@ or in scala,
 
 ```
 
-This means you cannot do
+However, it is impossible to implement bind for Compose  even if we say f and g are monads. Please try them out to convince yourself.
+
+
+This further implies we cannot do things like:
 
 ``` scala
 
-  val layered1: Either[Throwable, Option[Int]]
+  val id: Either[Throwable, Option[Int]]
 
-  val layered2: Either[Throwable, Option[Long]]
+  val getUserFromDb(id: Int): Either[Throwable, Option[Long]]
 
-  Compose(layered1).flatMap(_ => layered2)
+  Compose(id).flatMap(getUserFromDb(_).map(Compose.apply))
 
 
 ```
 
-That said, let's don't assume Compose useless for this reason. For instance, it has got a Traversable.
+That said, it doesn't mean `Compose` (refer `Nested` in cats) is a type that's of no use. For instance, it has got a Traversable which makes it really useful.
 
 ``` scala
 
-  val layered: Either[Throwable, Option[Int]]
+  val id: Either[Throwable, Option[Int]]
 
   def getUserFromDb(id: Int): IO[Either[Throwable, Option[User]]
 
-  val whatWeWant: IO[Compose[Throwable, Option[User]] =
-    Compose(layered).traverse(getUserFromDb.map(Compose.apply))
+  val user: IO[Compose[Throwable, Option[User]] =
+    Compose(id).traverse(getUserFromDb(_).map(Compose.apply))
 
 
 ```
