@@ -277,3 +277,22 @@ This makes it easier to switch to a different profile. You can do that using the
 
 
 ```
+
+### What if my laptop runs out of space?
+
+You might be wondering nothing is getting deleted especially when doing `nix-env -u` or `nix-env -e` (update or delete) because
+all they do is creating a new generation for the profile (user) with the updated simlinks to the real packages.
+
+The answer is Nix garbage collector. It will remove from the Nix store any package not used (directly or indirectly) by any generation of any profile.
+Important note from Nix-docs: "So in order for garbage collection to be effective, you should also delete (some) old generations".
+
+Refer to chapter 11 and skim through various commands such as `nix-env --delete-generations old`.
+
+To do garbage collection, we then docs
+
+``` scala
+
+ nix-store --gc
+
+
+```
