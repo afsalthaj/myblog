@@ -139,7 +139,8 @@ and at the same time, comes with convenience of using `mysql` directly.
 
 The solution lies here:
 
-When you install nix, it asks you (or adds automatically, I can't remember) to specify  `Users/afsalthaj/.nix-profile` in your base_profile.
+When you install nix, it asks you (or adds automatically, I can't remember) to specify  `/Users/afsalthaj/.nix-profile` in your base_profile.
+And you know "afsalthaj" here is just my username and nothing to do with nix.
 
 Within this profile path `Users/afsalthaj/.nix-profile/` we can see `bin` folder with simlinks to actual nix installed paths.
 
@@ -201,7 +202,7 @@ so that different users don't interfere each other if they don't want to".
 
 If you list `/nix/store/g1vqgql128rwjy636d6hyqyr0nmilwvs-user-environment/bin` you see the exact same content as before, which is the actual installations of packages.
 
-In simple terms, depending on the user logged in, the `~/.nix-profile` points to the latest profile of that user.
+In simple terms, depending on the user logged in, the `~/.nix-profile` points to the latest generation of that user (profile).
 
 This leads us to being able ot switch generations.
 
@@ -288,7 +289,7 @@ Important note from Nix-docs: "So in order for garbage collection to be effectiv
 
 Refer to chapter 11 and skim through various commands such as `nix-env --delete-generations old`.
 
-To do garbage collection, we then docs
+To do garbage collection, we then do
 
 ``` scala
 
@@ -296,3 +297,65 @@ To do garbage collection, we then docs
 
 
 ```
+
+Alternatively, just `nix-collect-garbage -d` is the right way to do it including the old generations.
+
+
+### Nix channel
+
+A Nix channel is just a URL that points to a place that contains a set of Nix expressions and a manifest. Using the command nix-channel you can automatically stay up to date with whatever is available at that URL.
+
+``` scala
+ cat ~/.nix-channels
+ ## https://nixos.org/channels/nixpkgs-unstable nixpkgs
+
+```
+
+Subscribing :
+
+``` scala
+
+ nix-channel --add https://nixos.org/channels/nixpkgs-unstable
+
+
+```
+You can obviously update packages within a channel, leading to creating new generations in your profile, that consist of simlinks pointing the very
+latest versions of the packages available through channel. If multiple channels exists, it creates a union of the channels.
+
+This is done through `nix-defexpr-channels`
+
+``` scala
+
+  ls -lrt  ~/.nix-defexpr/channels
+  ## lrwxr-xr-x  1 afsalthaj  staff  49  4 Sep 17:45 /Users/afsalthaj/.nix-defexpr/channels -> /nix/var/nix/profiles/per-user/afsalthaj/channels
+
+  ls -lrt /nix/var/nix/profiles/per-user/afsalthaj/channels
+  ## lrwxr-xr-x  1 afsalthaj  staff  15  4 Sep 17:45 /nix/var/nix/profiles/per-user/afsalthaj/channels -> channels-1-link
+
+
+
+```
+
+The nix-doc (just before part 3) also talk about sharing your nix-store with other machines using http, ssh and s3. Refer them if you are interested.
+I have never ended up using these features ever.
+
+
+
+### Let's write some nix expressions
+
+Oh, well we installed packages. We switched generations. We understand profiles and all sort of sim link magics involved.
+However, we still don't know what exactly is nix ? How are the packages designed ? Or declaratively defined ?
+
+In other words, in real life, we mostly write nix-expressions and not just live with  `nix-env -i somepakcage` that uses pre-built binaries.
+
+We know nix packages are available for you to install in your machine. Remember `nix-env -qa` listing down all available packages ?
+Well what if we need a new package into the nix packages collection ?
+
+Answer is: (COPY FROM NIX DOC)
+
+
+* Write a Nix expression for the package. This is a file that describes all the inputs involved in building the package, such as dependencies, sources, and so on.
+
+* Write a builder. This is a shell script that actually builds the package from the inputs.
+
+* Add the package to the file pkgs/top-level/all-packages.nix. The Nix expression written in the first step is a function; it requires other packages in order to build it. In this step you put it all together, i.e., you call the function with the right arguments to build the actual package.
