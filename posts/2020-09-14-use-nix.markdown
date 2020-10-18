@@ -1,0 +1,361 @@
+---
+title: Use nix today onwards
+---
+
+### Use nix
+
+A bit opinionated statement, yet very true.
+
+If you were doing `brew install mysql` its just bad.
+If you are using `nix-env -i mysql`, well we talk the same language.
+
+When installing a package using `nix`, you are not manipulating or mutating an
+environment in your machine.
+
+Let's take a simple example. Assuming you don't have mysql installed in your machine.
+
+To install this using `nix`, all you need to do is try
+
+``` scala
+
+  nix-env -i mysql
+
+
+```
+
+If that doesn't work, probably try `nix-env -qa 'mysql*' that will list down the packages
+(binaries) available in your nix-env for you to install.
+
+That is,
+
+``` scala
+
+  nix-env -qa 'mysql.*'
+
+
+```
+
+This will return a list of mysql related packages:
+
+``` scala
+
+  mysql-5.7.27
+  mysql-8.0.17
+  mysql-connector-java-5.1.46
+  mysql-connector-odbc-5.3.6
+  mysql-workbench-8.0.21
+  mysql-workbench-8.0.21
+  mysql2pgsql-0.0.1a
+  mysqld_exporter-0.12.1
+  mysqltuner-1.7.17
+
+
+```
+
+and then you could try
+
+``` scala
+
+  nix-env -i mysql-8.0.17
+
+
+```
+
+Once installed, the package, under the hood is stored in nix store, which is probably going to be
+in a path starting with `/nix/store/some-cryptographic-hash-package-name-bla/
+
+
+This implies, these are not stored at root level, or even at user level affecting other versions
+of mysql which you might have already installed in your machine.
+
+Try this:
+
+``` scala
+
+ ls -lrt /nix/store/*mysql*
+
+
+```
+
+and you see:
+
+``` scala
+
+
+  -r--r--r--  1 afsalthaj  admin  5036  1 Jan  1970 /nix/store/qnp2h0ffj5g30m5mmpwg4lz1walwqmr6-mysql-8.0.17.drv
+  -r--r--r--  1 afsalthaj  admin  3038  1 Jan  1970 /nix/store/ig0krswxfyjip4zfyczbawnfxsbqji3r-mysql-8.0.17.tar.gz.drv
+
+  /nix/store/lqigbpdcw281sy0k6nsi16kmj6972zrh-mysql-8.0.17:
+  total 0
+  dr-xr-xr-x   4 afsalthaj  admin   128  1 Jan  1970 share
+  dr-xr-xr-x  11 afsalthaj  admin   352  1 Jan  1970 lib
+  dr-xr-xr-x   3 afsalthaj  admin    96  1 Jan  1970 include
+  dr-xr-xr-x  34 afsalthaj  admin  1088  1 Jan  1970 bin
+
+  /nix/store/dcdsj0abj14ixr1p7vc1638wvhg1iyr3-mysql-8.0.17-static:
+  total 0
+  dr-xr-xr-x  4 afsalthaj  admin  128  1 Jan  1970 lib
+
+
+
+```
+
+Try if mysql is installed, by just running mysql in your terminal
+
+``` scala
+
+  mysql
+
+
+```
+
+Unstalling this using the below command doesn't delete `mysql` from the nix store.
+
+
+``` scala
+
+ nix-env -e mysql
+
+
+```
+
+Here we are starting to talk about immutatble package management. While mysql is not "Really" uninstalled, the applications
+that are still using `mysql` will start to fail in your machine. We will solve this problem later on.
+
+
+Before we answer the question, let's understand why on earth `mysql` without having to specify the path to its bin folder works.
+Ideally when we talk about immutability, it has to work only when we do
+
+
+``` scala
+
+  /nix/store/lqigbpdcw281sy0k6nsi16kmj6972zrh-mysql-8.0.17/bin/mysql
+
+```
+
+Its ok doing this imo (i.e, manually pointing to the package than polluting my profile/user files.
+However, nix comes with a better strategy such that it doesn't pollute profile files when you install packages using nix,
+and at the same time, comes with convenience of using `mysql` directly.
+
+The solution lies here:
+
+When you install nix, it asks you (or adds automatically, I can't remember) to specify  `/Users/afsalthaj/.nix-profile` in your base_profile.
+And you know "afsalthaj" here is just my username and nothing to do with nix.
+
+Within this profile path `Users/afsalthaj/.nix-profile/` we can see `bin` folder with simlinks to actual nix installed paths.
+
+
+Example:
+
+``` scala
+
+  lrwxr-xr-x  1 afsalthaj  admin  70  1 Jan  1970 mysqltest -> /nix/store/lqigbpdcw281sy0k6nsi16kmj6972zrh-mysql-8.0.17/bin/mysqltest
+  lrwxr-xr-x  1 afsalthaj  admin  70  1 Jan  1970 mysqlslap -> /nix/store/lqigbpdcw281sy0k6nsi16kmj6972zrh-mysql-8.0.17/bin/mysqlslap
+  lrwxr-xr-x  1 afsalthaj  admin  70  1 Jan  1970 mysqlshow -> /nix/store/lqigbpdcw281sy0k6nsi16kmj6972zrh-mysql-8.0.17/bin/mysqlshow
+  lrwxr-xr-x  1 afsalthaj  admin  70  1 Jan  1970 mysqlpump -> /nix/store/lqigbpdcw281sy0k6nsi16kmj6972zrh-mysql-8.0.17/bin/mysqlpump
+  // .. etc
+
+```
+
+That's it ? Yes. But there is a bit more to it. What exactly was `~/.nix-profile` ? Well it's another simlink.
+
+``` scala
+
+ls -lrt ~/.nix-profile
+lrwxr-xr-x  1 afsalthaj  staff  48  4 Sep 17:45 /Users/afsalthaj/.nix-profile -> /nix/var/nix/profiles/per-user/afsalthaj/profile
+
+
+```
+
+And what's in `/nix/var/nix/profiles/per-user/afsalthaj` ?
+
+``` scala
+
+ ls -lrt /nix/var/nix/profiles/per-user/afsalthaj
+
+```
+
+yielding:
+
+``` scala
+
+lrwxr-xr-x  1 afsalthaj  staff  60  4 Sep 17:45 profile-1-link -> /nix/store/lsrwsml0j65lhx2dhzyabjrdbiqcp5yg-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  60  4 Sep 17:45 profile-2-link -> /nix/store/p1a1mgd6pa9n41j88p5119b62pzk2hjy-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  60  4 Sep 17:45 channels-1-link -> /nix/store/fzy2wjnpwszb5qs28v9cwnd0v1nmbvzk-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  15  4 Sep 17:45 channels -> channels-1-link
+lrwxr-xr-x  1 afsalthaj  staff  60 14 Sep 12:41 profile-3-link -> /nix/store/wrhrzczc7kx30dbg6adhgb33492mlwzz-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  60 14 Sep 17:03 profile-4-link -> /nix/store/g1vqgql128rwjy636d6hyqyr0nmilwvs-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  60 14 Sep 17:04 profile-5-link -> /nix/store/wrhrzczc7kx30dbg6adhgb33492mlwzz-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  60 14 Sep 17:05 profile-6-link -> /nix/store/g1vqgql128rwjy636d6hyqyr0nmilwvs-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  60 14 Sep 17:06 profile-7-link -> /nix/store/wrhrzczc7kx30dbg6adhgb33492mlwzz-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  60 14 Sep 17:22 profile-8-link -> /nix/store/g1vqgql128rwjy636d6hyqyr0nmilwvs-user-environment
+lrwxr-xr-x  1 afsalthaj  staff  14 14 Sep 17:22 profile -> profile-8-link
+
+```
+
+A quick summary of these simlink magic:
+
+Quite straightforward, the origin `~/.nix-profile` points to `profile` (above) which points to the latest generation which is `profile-8-link`.
+As and when you make more changes to `nix-env`, i.e, when you add a nix-env operation, a new user enviornmnet and generation link are created based on the current one.
+In this case, from profile-7 to profile-8. These generations are per user. Or as per nix-docs (in other words), "generations are further grouped into profiles,
+so that different users don't interfere each other if they don't want to".
+
+If you list `/nix/store/g1vqgql128rwjy636d6hyqyr0nmilwvs-user-environment/bin` you see the exact same content as before, which is the actual installations of packages.
+
+In simple terms, depending on the user logged in, the `~/.nix-profile` points to the latest generation of that user (profile).
+
+This leads us to being able ot switch generations.
+
+The best way to switch is, to switch to previous generation.
+
+``` scala
+
+  nix-env --rollback
+
+```
+
+and now if you do,
+
+``` scala
+
+  ls -lrt /nix/var/nix/profiles/per-user/afsalthaj/profile
+  // Equivalent to ls -lrt ~/.nix-profile
+
+
+```
+
+it now points to profile-7-link generation for the profile "afsalthaj" (or, in other words second-last generation for the user "afsalthaj")
+
+
+``` scala
+
+  /nix/var/nix/profiles/per-user/afsalthaj/profile -> profile-7-link
+
+```
+
+Now you get to a previous change in your nix-env.
+
+Well let's switch back to latest before we continue
+
+``` scala
+
+  nix-env --switch-generation 8
+  ## switching from generation 7 to 8
+
+
+```
+
+To get a list of generations (obviously, it will list based on you as a user)
+
+``` scala
+
+  nix-env --list-generations
+
+```
+
+yielding all the 8 generations of the profile "afsalthaj" (user "afsalthaj")
+
+``` scala
+
+   1   2020-09-04 17:45:33
+   2   2020-09-04 17:45:33
+   3   2020-09-14 12:41:12
+   4   2020-09-14 17:03:06
+   5   2020-09-14 17:04:50
+   6   2020-09-14 17:05:09
+   7   2020-09-14 17:06:05
+   8   2020-09-14 17:22:46   (current)
+
+
+```
+
+PS: Yes we started by saying ~/.nix-profile/bin should be in your PATH ((COPY FROM nix-doc) and indeed, that’s what the initialisation script /nix/etc/profile.d/nix.sh does).
+This makes it easier to switch to a different profile. You can do that using the command nix-env --switch-profile:
+
+``` scala
+
+  nix-env --switch-profile /nix/var/nix/profiles/my-profile
+
+
+```
+
+### What if my laptop runs out of space?
+
+You might be wondering nothing is getting deleted especially when doing `nix-env -u` or `nix-env -e` (update or delete) because
+all they do is creating a new generation for the profile (user) with the updated simlinks to the real packages.
+
+The answer is Nix garbage collector. It will remove from the Nix store any package not used (directly or indirectly) by any generation of any profile.
+Important note from Nix-docs: "So in order for garbage collection to be effective, you should also delete (some) old generations".
+
+Refer to chapter 11 and skim through various commands such as `nix-env --delete-generations old`.
+
+To do garbage collection, we then do
+
+``` scala
+
+ nix-store --gc
+
+
+```
+
+Alternatively, just `nix-collect-garbage -d` is the right way to do it including the old generations.
+
+
+### Nix channel
+
+A Nix channel is just a URL that points to a place that contains a set of Nix expressions and a manifest. Using the command nix-channel you can automatically stay up to date with whatever is available at that URL.
+
+``` scala
+ cat ~/.nix-channels
+ ## https://nixos.org/channels/nixpkgs-unstable nixpkgs
+
+```
+
+Subscribing :
+
+``` scala
+
+ nix-channel --add https://nixos.org/channels/nixpkgs-unstable
+
+
+```
+You can obviously update packages within a channel, leading to creating new generations in your profile, that consist of simlinks pointing the very
+latest versions of the packages available through channel. If multiple channels exists, it creates a union of the channels.
+
+This is done through `nix-defexpr-channels`
+
+``` scala
+
+  ls -lrt  ~/.nix-defexpr/channels
+  ## lrwxr-xr-x  1 afsalthaj  staff  49  4 Sep 17:45 /Users/afsalthaj/.nix-defexpr/channels -> /nix/var/nix/profiles/per-user/afsalthaj/channels
+
+  ls -lrt /nix/var/nix/profiles/per-user/afsalthaj/channels
+  ## lrwxr-xr-x  1 afsalthaj  staff  15  4 Sep 17:45 /nix/var/nix/profiles/per-user/afsalthaj/channels -> channels-1-link
+
+
+
+```
+
+The nix-doc (just before part 3) also talk about sharing your nix-store with other machines using http, ssh and s3. Refer them if you are interested.
+I have never ended up using these features ever.
+
+
+
+### Let's write some nix expressions
+
+Oh, well we installed packages. We switched generations. We understand profiles and all sort of sim link magics involved.
+However, we still don't know what exactly is nix ? How are the packages designed ? Or declaratively defined ?
+
+In other words, in real life, we mostly write nix-expressions and not just live with  `nix-env -i somepakcage` that uses pre-built binaries.
+
+We know nix packages are available for you to install in your machine. Remember `nix-env -qa` listing down all available packages ?
+Well what if we need a new package into the nix packages collection ?
+
+Answer is: (COPY FROM NIX DOC)
+
+
+* Write a Nix expression for the package. This is a file that describes all the inputs involved in building the package, such as dependencies, sources, and so on.
+
+* Write a builder. This is a shell script that actually builds the package from the inputs.
+
+* Add the package to the file pkgs/top-level/all-packages.nix. The Nix expression written in the first step is a function; it requires other packages in order to build it. In this step you put it all together, i.e., you call the function with the right arguments to build the actual package.
