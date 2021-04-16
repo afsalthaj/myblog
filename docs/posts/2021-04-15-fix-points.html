@@ -99,17 +99,19 @@ def fixPointOf(f: &lt;someFn&gt;): fixPointOf_SomeFn
 <span id="cb12-4"><a href="#cb12-4"></a> implies,</span>
 <span id="cb12-5"><a href="#cb12-5"></a> </span>
 <span id="cb12-6"><a href="#cb12-6"></a><span class="co">// fix-point-fn = almostFactorial fix-point-fn</span></span>
-<span id="cb12-7"><a href="#cb12-7"></a></span></code></pre></div>
-<p>This implies</p>
+<span id="cb12-7"><a href="#cb12-7"></a></span>
+<span id="cb12-8"><a href="#cb12-8"></a><span class="co">// If we are building a function called fix-point-fn that takes `fn` as an argument then,</span></span>
+<span id="cb12-9"><a href="#cb12-9"></a><span class="co">// that means the following</span></span>
+<span id="cb12-10"><a href="#cb12-10"></a></span>
+<span id="cb12-11"><a href="#cb12-11"></a><span class="co">// fix-point-fn  fn = fn fix-point-fn</span></span>
+<span id="cb12-12"><a href="#cb12-12"></a><span class="co">// Rename fix-point-fn as Y, we will see later why</span></span>
+<span id="cb12-13"><a href="#cb12-13"></a><span class="co">// Y             fn = fn (Y fn)</span></span>
+<span id="cb12-14"><a href="#cb12-14"></a><span class="co">// or, def Y (f: Fn) = f(Y(f))</span></span></code></pre></div>
+<p>The above pseudo-code in Scala is</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1"></a></span>
-<span id="cb13-2"><a href="#cb13-2"></a> <span class="co">// fix-point-fn = almostFactorial fix-point-fn</span></span>
-<span id="cb13-3"><a href="#cb13-3"></a> <span class="co">// Y takes a function and converts to its fixpoint</span></span>
-<span id="cb13-4"><a href="#cb13-4"></a> <span class="co">// Y (f) = ??? // returns fix-point</span></span>
-<span id="cb13-5"><a href="#cb13-5"></a> <span class="co">// But, fix-point-fn = almostFactorial fix-point-fn</span></span>
-<span id="cb13-6"><a href="#cb13-6"></a> <span class="co">// Y (f) = f( Y (f))</span></span>
-<span id="cb13-7"><a href="#cb13-7"></a></span>
-<span id="cb13-8"><a href="#cb13-8"></a>  <span class="kw">def</span> Y[A](f: A =&gt; A) = <span class="fu">f</span>(<span class="fu">Y</span>(f))</span>
-<span id="cb13-9"><a href="#cb13-9"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial) <span class="co">// Stack overflow haha</span></span></code></pre></div>
+<span id="cb13-2"><a href="#cb13-2"></a> <span class="co">// (A =&gt; A) =&gt; (A =&gt; A) is alligned to the signature of almostFactorial</span></span>
+<span id="cb13-3"><a href="#cb13-3"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)) = <span class="fu">f</span>(<span class="fu">Y</span>(f))</span>
+<span id="cb13-4"><a href="#cb13-4"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial) <span class="co">// Stack overflow haha</span></span></code></pre></div>
 <p>Stack overflow is, when you call Y the following thing happens:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1"></a> </span>
 <span id="cb14-2"><a href="#cb14-2"></a> <span class="fu">f</span>(<span class="fu">Y</span>(f)) == </span>
@@ -117,22 +119,27 @@ def fixPointOf(f: &lt;someFn&gt;): fixPointOf_SomeFn
 <span id="cb14-4"><a href="#cb14-4"></a>  </span></code></pre></div>
 <p>In other words, it tries to compute the fix-point function for you and it never ends.</p>
 <p>Lambda saves us from this stack overflow - in a surprising way.</p>
-<p>See the below example of a lambda</p>
-<pre><code>def f(a: Int): Int = a
-
-def g = Int =&gt; f(a)
-
-// Here f is actually equal to g, except that `g` is another function that wraps `f`.
-g(1) == f(1) == 1
-</code></pre>
-<p>Let’s do that in our Y combinator. Oh well, why am I calling it as a <code>combinator</code> now. A combinator by definition should be a lambda that takes 1 argument and its body should never have any free variables, but only the one defined in the lambda. <code>lambda x : x + 1</code> is a combinator, and <code>lambda x: x + y</code> is not. <code>lambda x : ...</code> is a python syntax but you know the idea. Forget about this for the time being.</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb16-1"><a href="#cb16-1"></a>  <span class="kw">def</span> Y[A](f: A =&gt; A) = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a))</span>
-<span id="cb16-2"><a href="#cb16-2"></a>  <span class="co">// same as def Y[A](f: A =&gt; A) = f(Y(f)) except that the latter produces stack overflow. See for yourself why.</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb15-1"><a href="#cb15-1"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span>
+<span id="cb15-2"><a href="#cb15-2"></a>  <span class="co">// same as</span></span>
+<span id="cb15-3"><a href="#cb15-3"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a)) <span class="co">// Stack safe</span></span></code></pre></div>
 <p>Now my factorial implementation is</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb17-1"><a href="#cb17-1"></a></span>
-<span id="cb17-2"><a href="#cb17-2"></a> <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
-<span id="cb17-3"><a href="#cb17-3"></a></span>
-<span id="cb17-4"><a href="#cb17-4"></a> <span class="co">// factorial(3) is 6</span></span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb16-1"><a href="#cb16-1"></a></span>
+<span id="cb16-2"><a href="#cb16-2"></a> <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
+<span id="cb16-3"><a href="#cb16-3"></a></span>
+<span id="cb16-4"><a href="#cb16-4"></a> <span class="co">// factorial(3) is 6</span></span></code></pre></div>
+<p>Now, that works. However, we could further improve things.</p>
+<p>The <code>Y</code> function that we defined (the function that takes another function and returns a fix-point function) has a restricted shape.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb17-1"><a href="#cb17-1"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span></code></pre></div>
+<p><code>(A =&gt; A) =&gt; (A =&gt; A)</code> is equivalent to <code>A =&gt; A</code> in types. In other words. The following will compile.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb18-1"><a href="#cb18-1"></a></span>
+<span id="cb18-2"><a href="#cb18-2"></a>    <span class="kw">def</span> Y[A](f: A =&gt; A): A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span>
+<span id="cb18-3"><a href="#cb18-3"></a>    <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span></code></pre></div>
+<p>However, it’s sort of fairly hacky to make our latest <code>Y</code> stacksafe using our lambda technique. Try yourself if you are having a doubt. For this reaso, may be we can keep the same original <code>Y</code> as it is but with another minor change. We can make the return type a <code>B</code> instead of <code>A</code> to allow more flexiblity.</p>
+<p>In the case of <code>factorial</code> which is <code>Int =&gt; Int</code>, <code>B</code> is <code>A</code> itself.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb19-1"><a href="#cb19-1"></a></span>
+<span id="cb19-2"><a href="#cb19-2"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; B) =&gt; (A =&gt; B)): A =&gt; B = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a)) <span class="co">// Stack safe</span></span>
+<span id="cb19-3"><a href="#cb19-3"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
+<span id="cb19-4"><a href="#cb19-4"></a></span></code></pre></div>
 <p>Hurray, this blog is incomplete, and yet to be cleaned up. Thanks for your patience. Catch you soon!</p>
     </section>
 </article>
