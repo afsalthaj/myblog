@@ -96,6 +96,7 @@ Fine, let's take a different approach then.
 
   factorial0(0) // returns 1 ==> works
   factorial0(1) // doesn't work, coz identity(n - 1) == identity(1 - 1) == identity(0) == 0
+  
 ```
 
 So `factorial0` works only for zero. That's fine for now.
@@ -103,7 +104,9 @@ So `factorial0` works only for zero. That's fine for now.
 Let's implement for factorial1.
 
 
-```scala
+```haskell
+
+
 
  val factorial1 = 
    almostFactorial(factorial0) // that works
@@ -116,6 +119,9 @@ Let's implement for factorial1.
 
  val factorialInfinity: Int => Int = 
       almostFactorial(almostFactorial(almostFactorial.............almostFactorial(.........))) // forever
+      
+      
+      
 
 ```
 
