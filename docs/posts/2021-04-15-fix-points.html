@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Afsal's Blog - Fix point types in Scala. A quick brain teaser</title>
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+
+<body>
+    <header>
+        <div class="logo">
+            <a href="../">Afsal's Blog</a>
+        </div>
+        <nav>
+            <a href="../">Home</a>
+            <a href="../about.html">About</a>
+            <a href="../contact.html">Contact</a>
+            <a href="../archive.html">Archive</a>
+        </nav>
+    </header>
+
+    <main role="main">
+        <h1>Fix point types in Scala. A quick brain teaser</h1>
+        <article>
+    <section class="header">
+        Posted on April 15, 2021
+        
+    </section>
+    <section>
+        <p>Let’s do some math.</p>
+<p>If we continuously do <code>cosine</code> of 0 and keep on applying <code>cosine</code> over the result, we end up in a number finally that gets <code>fixed</code> forever. The number is 0.73908513321516067.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1"></a></span>
+<span id="cb1-2"><a href="#cb1-2"></a>  <span class="fu">cos</span>(<span class="fu">cos</span>(<span class="fu">cos</span>(<span class="fu">cos</span>(x))))</span>
+<span id="cb1-3"><a href="#cb1-3"></a></span></code></pre></div>
+<p>Ofcourse this example is a blatant copy from one of the most wonderful blogs ever written about fix-points in Scheme language - https://mvanier.livejournal.com/2897.html.</p>
+<p>You can choose to read it. But this blog slightly takes a different turn for explaining things to reach the same goal.</p>
+<p>Hence the fix-point of <code>cos</code> is <code>x</code> if <code>cos(x) = x</code>. But a fix-point may not be always a real number. It could be even a <code>type</code>. A <code>function</code> is a <code>type</code> indeed.</p>
+<p>Sure what does that mean? Well if <code>fix-point</code> of a function like <code>cos</code> is a <code>real-number</code>, and if you say that a <code>fix-point</code> can be a <code>function</code> itself, that means the following:</p>
+<pre><code>
+There exists a `function`, whose fix-point can be a `funtion` itself. Hmmmmm. 
+</code></pre>
+<h2 id="stop-explaining.-show-an-example.">Stop explaining. Show an example.</h2>
+<p>A factorial of a number 3 is 3 * 2 * 1. It’s implementation is as follows:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1"></a></span>
+<span id="cb3-2"><a href="#cb3-2"></a>  <span class="kw">val</span> factorial: Int =&gt; Int = </span>
+<span id="cb3-3"><a href="#cb3-3"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">factorial</span>(n - <span class="dv">1</span>)</span></code></pre></div>
+<p>Sure, that’s easy. But let’s say someone asked you to implement the same <code>factorial</code> such that the name of the function shouldn’t come in the body. Before you ask <code>why</code>, here is a question for you. Why are we implementing <code>sort</code> in an interview while most of us (that I have met) never had to implement a sort ever in our professional career?</p>
+<p>Consider it as a challenge and move on with the rest of the blog.</p>
+<p>Answering the question, well may be I can do</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1"></a></span>
+<span id="cb4-2"><a href="#cb4-2"></a>  <span class="kw">def</span> <span class="fu">factorial</span>(f: Int =&gt; Int): Int =&gt; Int = </span>
+<span id="cb4-3"><a href="#cb4-3"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>)</span></code></pre></div>
+<p>Ah, sure, but that’s not a factorial.</p>
+<p>Ofcourse, that’s not a factorial, so let’s call it as <code>almostFactorial</code>.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb5-1"><a href="#cb5-1"></a></span>
+<span id="cb5-2"><a href="#cb5-2"></a>   <span class="kw">def</span> <span class="fu">almostFactorial</span>(f: Int =&gt; Int): Int =&gt; Int = </span>
+<span id="cb5-3"><a href="#cb5-3"></a>     n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>)</span></code></pre></div>
+<p>Now we need to implement a sensible <code>factorial</code> in terms of <code>almostFactorial</code>. All of us know, the real factorial exists when the <code>f</code>( now staying as an argument in <code>almostFactorial</code>) is <code>almostFactorial</code> itself.</p>
+<p>i.e,</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1"></a></span>
+<span id="cb6-2"><a href="#cb6-2"></a>  <span class="kw">val</span> factorial: Int =&gt; Int = </span>
+<span id="cb6-3"><a href="#cb6-3"></a>    <span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(.....)))</span></code></pre></div>
+<p>Well if you try to implement it, you will be writing it forever. Anyone who is not convinced yet, please try it out.</p>
+<p>Fine, let’s take a different approach then.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1"></a></span>
+<span id="cb7-2"><a href="#cb7-2"></a> <span class="kw">val</span> factorial0: Int =&gt; Int = </span>
+<span id="cb7-3"><a href="#cb7-3"></a>   <span class="fu">almostFactorial</span>(identity)</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1"></a></span>
+<span id="cb8-2"><a href="#cb8-2"></a>  <span class="fu">factorial0</span>(<span class="dv">0</span>) <span class="co">// returns 1 ==&gt; works</span></span>
+<span id="cb8-3"><a href="#cb8-3"></a>  <span class="fu">factorial0</span>(<span class="dv">1</span>) <span class="co">// doesn't work, coz identity(n - 1) == identity(1 - 1) == identity(0) == 0</span></span></code></pre></div>
+<p>So <code>factorial0</code> works only for zero. That’s fine for now.</p>
+<p>Let’s implement for factorial1.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb9-1"><a href="#cb9-1"></a></span>
+<span id="cb9-2"><a href="#cb9-2"></a> <span class="kw">val</span> factorial1 = </span>
+<span id="cb9-3"><a href="#cb9-3"></a>   <span class="fu">almostFactorial</span>(factorial0) <span class="co">// that works</span></span>
+<span id="cb9-4"><a href="#cb9-4"></a></span>
+<span id="cb9-5"><a href="#cb9-5"></a> <span class="kw">val</span> factorial2 = </span>
+<span id="cb9-6"><a href="#cb9-6"></a>   <span class="fu">almostFactorial</span>(factorial1) <span class="co">// that works too.</span></span>
+<span id="cb9-7"><a href="#cb9-7"></a></span>
+<span id="cb9-8"><a href="#cb9-8"></a> <span class="kw">val</span> factorial2_ = </span>
+<span id="cb9-9"><a href="#cb9-9"></a>   <span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(identity))) <span class="co">// that works too.</span></span>
+<span id="cb9-10"><a href="#cb9-10"></a></span>
+<span id="cb9-11"><a href="#cb9-11"></a> <span class="kw">val</span> factorialInfinity: Int =&gt; Int = </span>
+<span id="cb9-12"><a href="#cb9-12"></a>      <span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(almostFactorial.............<span class="fu">almostFactorial</span>(.........))) <span class="co">// forever</span></span></code></pre></div>
+<p>Ah, kind of making sense now. <code>factorialInfinity</code> is a function, which is a fixpoint of <code>almostFactorial</code>. Infact <code>factorialInfinitiy</code> is our real <code>factorial</code> implementation.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb10-1"><a href="#cb10-1"></a></span>
+<span id="cb10-2"><a href="#cb10-2"></a> factorial = fix-point-of almostFactorial</span></code></pre></div>
+<p>Hmmm. I think its time to figure out what is this <code>fix-point-of</code>. Is there a function called <code>fix-point-of</code> that allows us to pass <code>almostFactorial</code> and return a real <code>factorial</code>. In other words, is there a function called <code>fix-point-of</code> that takes a function and returns the fix-point of that function.</p>
+<pre><code>
+def fixPointOf(f: &lt;someFn&gt;): fixPointOf_SomeFn
+</code></pre>
+<p>This <code>fixPointOf</code> is our famous y combinator. The <code>Y</code> combinator is the one that converts a function to its fix-point.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb12-1"><a href="#cb12-1"></a></span>
+<span id="cb12-2"><a href="#cb12-2"></a> <span class="kw">val</span> factorial = <span class="fu">almostFactorial</span>(factorial)</span>
+<span id="cb12-3"><a href="#cb12-3"></a></span>
+<span id="cb12-4"><a href="#cb12-4"></a> implies,</span>
+<span id="cb12-5"><a href="#cb12-5"></a> </span>
+<span id="cb12-6"><a href="#cb12-6"></a><span class="co">// fix-point-fn = almostFactorial fix-point-fn</span></span>
+<span id="cb12-7"><a href="#cb12-7"></a></span></code></pre></div>
+<p>This implies</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1"></a></span>
+<span id="cb13-2"><a href="#cb13-2"></a> <span class="co">// fix-point-fn = almostFactorial fix-point-fn</span></span>
+<span id="cb13-3"><a href="#cb13-3"></a> <span class="co">// Y takes a function and converts to its fixpoint</span></span>
+<span id="cb13-4"><a href="#cb13-4"></a> <span class="co">// Y (f) = ??? // returns fix-point</span></span>
+<span id="cb13-5"><a href="#cb13-5"></a> <span class="co">// But, fix-point-fn = almostFactorial fix-point-fn</span></span>
+<span id="cb13-6"><a href="#cb13-6"></a> <span class="co">// Y (f) = f( Y (f))</span></span>
+<span id="cb13-7"><a href="#cb13-7"></a></span>
+<span id="cb13-8"><a href="#cb13-8"></a>  <span class="kw">def</span> Y[A](f: A =&gt; A) = <span class="fu">f</span>(<span class="fu">Y</span>(f))</span>
+<span id="cb13-9"><a href="#cb13-9"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial) <span class="co">// Stack overflow haha</span></span></code></pre></div>
+<p>Stack overflow is, when you call Y the following thing happens:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1"></a> </span>
+<span id="cb14-2"><a href="#cb14-2"></a> <span class="fu">f</span>(<span class="fu">Y</span>(f)) == </span>
+<span id="cb14-3"><a href="#cb14-3"></a>   <span class="fu">f</span>(<span class="fu">f</span>(<span class="fu">f</span>(<span class="fu">f</span>(f.......))))</span>
+<span id="cb14-4"><a href="#cb14-4"></a>  </span></code></pre></div>
+<p>In other words, it tries to compute the fix-point function for you and it never ends.</p>
+<p>Lambda saves us from this stack overflow - in a surprising way.</p>
+<p>See the below example of a lambda</p>
+<pre><code>def f(a: Int): Int = a
+
+def g = Int =&gt; f(a)
+
+// Here f is actually equal to g, except that `g` is another function that wraps `f`.
+g(1) == f(1) == 1
+</code></pre>
+<p>Let’s do that in our Y combinator. Oh well, why am I calling it as a <code>combinator</code> now. A combinator by definition should be a lambda that takes 1 argument and its body should never have any free variables, but only the one defined in the lambda. <code>lambda x : x + 1</code> is a combinator, and <code>lambda x: x + y</code> is not. <code>lambda x : ...</code> is a python syntax but you know the idea. Forget about this for the time being.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb16-1"><a href="#cb16-1"></a>  <span class="kw">def</span> Y[A](f: A =&gt; A) = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a))</span>
+<span id="cb16-2"><a href="#cb16-2"></a>  <span class="co">// same as def Y[A](f: A =&gt; A) = f(Y(f)) except that the latter produces stack overflow. See for yourself why.</span></span></code></pre></div>
+<p>Now my factorial implementation is</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb17-1"><a href="#cb17-1"></a></span>
+<span id="cb17-2"><a href="#cb17-2"></a> <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
+<span id="cb17-3"><a href="#cb17-3"></a></span>
+<span id="cb17-4"><a href="#cb17-4"></a> <span class="co">// factorial(3) is 6</span></span></code></pre></div>
+<p>Hurray, this blog is incomplete, and yet to be cleaned up. Thanks for your patience. Catch you soon!</p>
+    </section>
+</article>
+
+    </main>
+
+    <footer>
+        Site proudly generated by
+        <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+    </footer>
+</body>
+
+</html>
