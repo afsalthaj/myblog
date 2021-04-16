@@ -150,20 +150,23 @@ This `fixPointOf` is our famous y combinator. The `Y` combinator is the one that
  
 // fix-point-fn = almostFactorial fix-point-fn
 
+// If we are building a function called fix-point-fn that takes `fn` as an argument then,
+// that means the following
+
+// fix-point-fn  fn = fn fix-point-fn
+// Rename fix-point-fn as Y, we will see later why
+// Y             fn = fn (Y fn)
+// or, def Y (f: Fn) = f(Y(f))
 
 ```
 
-This implies
+The above pseudo-code in Scala is
+
 
 ```scala
 
- // fix-point-fn = almostFactorial fix-point-fn
- // Y takes a function and converts to its fixpoint
- // Y (f) = ??? // returns fix-point
- // But, fix-point-fn = almostFactorial fix-point-fn
- // Y (f) = f( Y (f))
-
-  def Y[A](f: A => A) = f(Y(f))
+ // (A => A) => (A => A) is alligned to the signature of almostFactorial
+  def Y[A](f: (A => A) => (A => A)) = f(Y(f))
   val factorial = Y(almostFactorial) // Stack overflow haha
 
 ```
@@ -182,27 +185,11 @@ In other words, it tries to compute the fix-point function for you and it never 
 
 Lambda saves us from this stack overflow - in a surprising way.
 
-See the below example of a lambda
-
-```
-def f(a: Int): Int = a
-
-def g = Int => f(a)
-
-// Here f is actually equal to g, except that `g` is another function that wraps `f`.
-g(1) == f(1) == 1
-
-```
-
-Let's do that in our Y combinator. Oh well, why am I calling it as a `combinator` now. 
-A combinator by definition should be a lambda that takes 1 argument and its body should never have any free variables,
-but only the one defined in the lambda. `lambda x : x + 1` is a combinator, and `lambda x: x + y` is not. `lambda x : ...` is a python syntax
-but you know the idea. Forget about this for the time being.
-
 
 ```scala
-  def Y[A](f: A => A) = f(a => Y(f)(a))
-  // same as def Y[A](f: A => A) = f(Y(f)) except that the latter produces stack overflow. See for yourself why.
+  def Y[A](f: (A => A) => (A => A)): A => A = f(Y(f)) // Stack unsafe
+  // same as
+  def Y[A](f: (A => A) => (A => A)): A => A = f(a => Y(f)(a)) // Stack safe
 
 ```
 
@@ -214,5 +201,41 @@ Now my factorial implementation is
 
  // factorial(3) is 6
 ```
+
+Now, that works. However, we could further improve things.
+
+The `Y` function that we defined (the function that takes another function and returns a fix-point function)
+has a restricted shape.
+
+```scala
+  def Y[A](f: (A => A) => (A => A)): A => A = f(Y(f)) // Stack unsafe
+
+```
+
+`(A => A) => (A => A)` is equivalent to `A => A` in types. In other words.
+The following will compile.
+
+```scala
+
+    def Y[A](f: A => A): A = f(Y(f)) // Stack unsafe
+    val factorial = Y(almostFactorial)
+
+```
+
+However, it's sort of fairly hacky to make our latest `Y` stacksafe using our lambda technique. 
+Try yourself if you are having a doubt. For this reaso, may be we can keep the same original `Y` as it is but with another minor change.
+We can make the return type a `B` instead of `A` to allow more flexiblity. 
+
+In the case of `factorial` which is `Int => Int`, `B` is `A` itself.
+
+
+```scala
+
+  def Y[A](f: (A => B) => (A => B)): A => B = f(a => Y(f)(a)) // Stack safe
+  val factorial = Y(almostFactorial)
+
+
+```
+
 
 Hurray, this blog is incomplete, and yet to be cleaned up. Thanks for your patience. Catch you soon!
