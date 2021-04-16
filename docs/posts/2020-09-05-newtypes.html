@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Afsal's Blog - Newtype in zio-prelude</title>
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+
+<body>
+    <header>
+        <div class="logo">
+            <a href="../">Afsal's Blog</a>
+        </div>
+        <nav>
+            <a href="../">Home</a>
+            <a href="../about.html">About</a>
+            <a href="../contact.html">Contact</a>
+            <a href="../archive.html">Archive</a>
+        </nav>
+    </header>
+
+    <main role="main">
+        <h1>Newtype in zio-prelude</h1>
+        <article>
+    <section class="header">
+        Posted on September  5, 2020
+        
+    </section>
+    <section>
+        <p>For those who need to get straight into the code with explanations as comments, please feel free to jump to:</p>
+<p>https://scastie.scala-lang.org/afsalthaj/4rTuhrx6Tw6wohdyaP73bg/2</p>
+<p>Others, read on ! In type-driven development, it is often necessary to distinguish between different interpretations of the same underlying type. For example, for the underlying type ‘integer’, there are multiple possible Monoids — that is, multiple ways to accumulate integers. One Monoid is to sum all the values, with the ‘empty’ value being 0. Another Monoid for integer multiplies all the values, so the ‘empty’ value has to be 1. (I give example implementations for these Monoids at the end of the article.)</p>
+<p>Even if you don’t know what a Monoid is yet, the classic way to distinguish between these interpretations of integer is to create a ‘newtype’ for each interpretation, called Sum and Mult. A newtype is a zero-cost (hopefully) specialisation of the underlying type. It looks and feels like an integer, but it has unique semantics, such as summing or multiplying. It gives power to the user to specify integer accumulation behaviour just by selecting the appropriate newtype. There are several ways of implementing newtypes, with varying levels of success at being ‘zero-cost’. Dotty will provide opaque types but I am yet to learn more about it, however, an initial implementation is here: https://scastie.scala-lang.org/aO450cLdTUyTpUseGkkbSA . Anyway, in the meantime, here is an approach to achieving that goal. (Taken from Spartan course, Jdgoes) It relies on the programming technique called existential types.</p>
+<h3 id="existential-types">Existential Types</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1"></a></span>
+<span id="cb1-2"><a href="#cb1-2"></a> <span class="kw">trait</span> Foo {</span>
+<span id="cb1-3"><a href="#cb1-3"></a>   <span class="kw">type</span> Type</span>
+<span id="cb1-4"><a href="#cb1-4"></a>   <span class="kw">def</span> get: Type</span>
+<span id="cb1-5"><a href="#cb1-5"></a> }</span>
+<span id="cb1-6"><a href="#cb1-6"></a></span>
+<span id="cb1-7"><a href="#cb1-7"></a> <span class="kw">object</span> X {</span>
+<span id="cb1-8"><a href="#cb1-8"></a>  <span class="kw">val</span> foo: Foo =</span>
+<span id="cb1-9"><a href="#cb1-9"></a>    <span class="kw">new</span> Foo {</span>
+<span id="cb1-10"><a href="#cb1-10"></a>      <span class="kw">override</span> <span class="kw">type</span> Type = Int</span>
+<span id="cb1-11"><a href="#cb1-11"></a>      <span class="kw">override</span> <span class="kw">def</span> get: Type = <span class="dv">1</span></span>
+<span id="cb1-12"><a href="#cb1-12"></a>    }</span>
+<span id="cb1-13"><a href="#cb1-13"></a> <span class="kw">val</span> <span class="dt">int</span>: Int = foo.<span class="fu">get</span></span>
+<span id="cb1-14"><a href="#cb1-14"></a> <span class="co">// Error: type mismatch;</span></span>
+<span id="cb1-15"><a href="#cb1-15"></a> <span class="co">// found : foo.Type</span></span>
+<span id="cb1-16"><a href="#cb1-16"></a> <span class="co">// required: Int</span></span>
+<span id="cb1-17"><a href="#cb1-17"></a></span>
+<span id="cb1-18"><a href="#cb1-18"></a></span>
+<span id="cb1-19"><a href="#cb1-19"></a></span></code></pre></div>
+<p>As you see in this example, we know the value that foo holds is of the type Int, however Scala can’t know it is of the type Int. All it knows is, int has to be foo.Type.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb2-1"><a href="#cb2-1"></a></span>
+<span id="cb2-2"><a href="#cb2-2"></a> <span class="kw">val</span> int1: foo.<span class="fu">Type</span> = foo.<span class="fu">get</span> <span class="co">// compiles</span></span>
+<span id="cb2-3"><a href="#cb2-3"></a> <span class="kw">val</span> int2: Int = foo.<span class="fu">get</span> <span class="co">// doesn’t compile</span></span>
+<span id="cb2-4"><a href="#cb2-4"></a></span></code></pre></div>
+<h3 id="initial-approach">Initial Approach</h3>
+<p>The core idea is this. If Scala doesn’t know that foo.Type is Int , then why don’t we make use of this quirk of the language, and use it to define a newtype for Int ? That is foo.Type!</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1"></a> <span class="kw">trait</span> NewType[A] {</span>
+<span id="cb3-2"><a href="#cb3-2"></a>  <span class="kw">type</span> Type</span>
+<span id="cb3-3"><a href="#cb3-3"></a>  <span class="kw">def</span> <span class="fu">wrap</span>(a: A): Type</span>
+<span id="cb3-4"><a href="#cb3-4"></a>  <span class="kw">def</span> <span class="fu">unwrap</span>(a: Type): A</span>
+<span id="cb3-5"><a href="#cb3-5"></a> }</span>
+<span id="cb3-6"><a href="#cb3-6"></a></span>
+<span id="cb3-7"><a href="#cb3-7"></a> <span class="kw">def</span> newType[A]: NewType[A] =</span>
+<span id="cb3-8"><a href="#cb3-8"></a>  <span class="kw">new</span> NewType[A] {</span>
+<span id="cb3-9"><a href="#cb3-9"></a>   <span class="kw">type</span> Type = A</span>
+<span id="cb3-10"><a href="#cb3-10"></a>   <span class="kw">override</span> <span class="kw">def</span> <span class="fu">wrap</span>(a: A): Type = a</span>
+<span id="cb3-11"><a href="#cb3-11"></a>   <span class="kw">override</span> <span class="kw">def</span> <span class="fu">unwrap</span>(a: Type): A = a</span>
+<span id="cb3-12"><a href="#cb3-12"></a>  }</span></code></pre></div>
+<p>The key thing to notice here is that in the created NewType instance, Type and A are exactly the same type. The methods wrap and unwrap don’t have to do anything to convert between the types. Instead, the wrap and unwrap operations are just some type trickery to allow a zero-cost separation of ‘logical type’ (called Type) from the underlying real type (A). We can use this so implement an integer newtype that stipulates multiplication Monoid behaviour.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1"></a></span>
+<span id="cb4-2"><a href="#cb4-2"></a> <span class="kw">val</span> Mult: NewType[Int] = newType[Int]</span>
+<span id="cb4-3"><a href="#cb4-3"></a> <span class="kw">type</span> Mult = Mult.<span class="fu">Type</span></span>
+<span id="cb4-4"><a href="#cb4-4"></a> <span class="kw">implicit</span> <span class="kw">val</span> multiplyingMonoid =</span>
+<span id="cb4-5"><a href="#cb4-5"></a>   <span class="kw">new</span> Monoid[Mult] {</span>
+<span id="cb4-6"><a href="#cb4-6"></a>     <span class="kw">override</span> <span class="kw">def</span> empty: Mult = Mult.<span class="fu">wrap</span>(<span class="dv">1</span>)</span>
+<span id="cb4-7"><a href="#cb4-7"></a>     <span class="kw">override</span> <span class="kw">def</span> <span class="fu">combine</span>(</span>
+<span id="cb4-8"><a href="#cb4-8"></a>      x: Mult, y: Mult</span>
+<span id="cb4-9"><a href="#cb4-9"></a>     ): Mult =  Mult.<span class="fu">wrap</span>(Mult.<span class="fu">unwrap</span>(x) * Mult.<span class="fu">unwrap</span>(y))</span>
+<span id="cb4-10"><a href="#cb4-10"></a>   }</span>
+<span id="cb4-11"><a href="#cb4-11"></a></span></code></pre></div>
+<p>This works. There is a bit of boilerplate to wrap and unwrap the underlying integer type, but this doesn’t cost anything at runtime — it is just there to fool the compiler into treating Mult as a different type from Int, but not adding any memory or performance cost. The wrapping and unwrapping melts away in the compiled code. We could just call success here and start using it, but there is some ugliness involved in the solution. All that wrapping and unwrapping will soon get tedious. Is there a way to eliminate it?</p>
+<h3 id="scala-subtyping-to-get-away-from-boilerplate">Scala subtyping to get away from boilerplate</h3>
+<p>Let’s make one small change.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb5-1"><a href="#cb5-1"></a></span>
+<span id="cb5-2"><a href="#cb5-2"></a> <span class="kw">trait</span> NewType[A] {</span>
+<span id="cb5-3"><a href="#cb5-3"></a>   <span class="kw">type</span> Type &lt;: A <span class="co">// changed</span></span>
+<span id="cb5-4"><a href="#cb5-4"></a>   <span class="kw">def</span> <span class="fu">wrap</span>(a: A): Type</span>
+<span id="cb5-5"><a href="#cb5-5"></a>   <span class="kw">def</span> <span class="fu">unwrap</span>(a: Type): A</span>
+<span id="cb5-6"><a href="#cb5-6"></a> }</span>
+<span id="cb5-7"><a href="#cb5-7"></a></span></code></pre></div>
+<p>That constraint on Type says that Type can be anything, so long as it is a subtype of A. This gives us some advantage since a Type now is-an A. Essentially, there is no longer a need to unwrap. We can even delete that method. Let’s reimplement a Monoid for an Int newtype — say Sum this time.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1"></a></span>
+<span id="cb6-2"><a href="#cb6-2"></a> <span class="kw">val</span> Sum: NewType[Int] = newType[Int]</span>
+<span id="cb6-3"><a href="#cb6-3"></a> <span class="kw">type</span> Sum = Sum.<span class="fu">Type</span></span>
+<span id="cb6-4"><a href="#cb6-4"></a></span>
+<span id="cb6-5"><a href="#cb6-5"></a> <span class="kw">implicit</span> <span class="kw">val</span> summingMonoid =</span>
+<span id="cb6-6"><a href="#cb6-6"></a>   <span class="kw">new</span> Monoid[Sum] {</span>
+<span id="cb6-7"><a href="#cb6-7"></a>     <span class="kw">override</span> <span class="kw">def</span> empty: Sum = Sum.<span class="fu">wrap</span>(<span class="dv">0</span>)</span>
+<span id="cb6-8"><a href="#cb6-8"></a>     <span class="kw">override</span> <span class="kw">def</span> <span class="fu">combine</span>(x: Sum, y: Sum): Sum = Sum.<span class="fu">wrap</span>(x + y)</span>
+<span id="cb6-9"><a href="#cb6-9"></a>   }</span>
+<span id="cb6-10"><a href="#cb6-10"></a></span></code></pre></div>
+<p>Notice the combine method implementation is Sum.wrap(x + y). Without the subtyping, this would have been Sum.wrap(Sum.unwrap(x) + Sum.unwrap(y)). Because a Sum is an Int, we can use integer addition operators directly on them.</p>
+<h3 id="ergonomics">Ergonomics</h3>
+<p>If we lose the redundant unwrap method, and rename wrap to Scala’s special ‘apply’ method, boilerplate is minimised to a reasonable level.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1"></a></span>
+<span id="cb7-2"><a href="#cb7-2"></a> <span class="kw">trait</span> NewType[A] {</span>
+<span id="cb7-3"><a href="#cb7-3"></a>   <span class="kw">type</span> Type &lt;: A</span>
+<span id="cb7-4"><a href="#cb7-4"></a>   <span class="kw">def</span> <span class="fu">apply</span>(a: A): Type</span>
+<span id="cb7-5"><a href="#cb7-5"></a> }</span>
+<span id="cb7-6"><a href="#cb7-6"></a></span>
+<span id="cb7-7"><a href="#cb7-7"></a> <span class="kw">def</span> newType[A]: NewType[A] =</span>
+<span id="cb7-8"><a href="#cb7-8"></a>   <span class="kw">new</span> NewType[A] {</span>
+<span id="cb7-9"><a href="#cb7-9"></a>   <span class="kw">type</span> Type = A</span>
+<span id="cb7-10"><a href="#cb7-10"></a>   <span class="kw">override</span> <span class="kw">def</span> <span class="fu">apply</span>(a: A): Type = a</span>
+<span id="cb7-11"><a href="#cb7-11"></a> }</span>
+<span id="cb7-12"><a href="#cb7-12"></a></span>
+<span id="cb7-13"><a href="#cb7-13"></a> <span class="kw">val</span> Sum: NewType[Int] = newType[Int]</span>
+<span id="cb7-14"><a href="#cb7-14"></a> <span class="kw">type</span> Sum = Sum.<span class="fu">Type</span></span>
+<span id="cb7-15"><a href="#cb7-15"></a></span>
+<span id="cb7-16"><a href="#cb7-16"></a> <span class="kw">implicit</span> <span class="kw">val</span> summingMonoid = <span class="kw">new</span> Monoid[Sum] {</span>
+<span id="cb7-17"><a href="#cb7-17"></a>   <span class="kw">override</span> <span class="kw">def</span> empty: Sum = <span class="fu">Sum</span>(<span class="dv">0</span>)</span>
+<span id="cb7-18"><a href="#cb7-18"></a>   <span class="kw">override</span> <span class="kw">def</span> <span class="fu">combine</span>(x: Sum, y: Sum): Sum = <span class="fu">Sum</span>(x + y)</span>
+<span id="cb7-19"><a href="#cb7-19"></a> }</span>
+<span id="cb7-20"><a href="#cb7-20"></a></span></code></pre></div>
+<h4 id="higher-kindedness">Higher Kindedness</h4>
+<p>Just as we benefit from the equivalence between Type and A, we can also get the same benefits for F[A]. Let’s add some methods to support type constructors (F[_]).</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1"></a> <span class="kw">trait</span> NewType[A] {</span>
+<span id="cb8-2"><a href="#cb8-2"></a>   <span class="kw">type</span> Type &lt;: A</span>
+<span id="cb8-3"><a href="#cb8-3"></a>   <span class="kw">def</span> <span class="fu">apply</span>(a: A): Type</span>
+<span id="cb8-4"><a href="#cb8-4"></a>   <span class="kw">def</span> toF[F[_]](fa: F[A]): F[Type]</span>
+<span id="cb8-5"><a href="#cb8-5"></a>   <span class="kw">def</span> fromF[F[_]](fa: F[Type]): F[A]</span>
+<span id="cb8-6"><a href="#cb8-6"></a> }</span>
+<span id="cb8-7"><a href="#cb8-7"></a></span>
+<span id="cb8-8"><a href="#cb8-8"></a> <span class="kw">def</span> newType[A]: NewType[A] =</span>
+<span id="cb8-9"><a href="#cb8-9"></a>   <span class="kw">new</span> NewType[A] {</span>
+<span id="cb8-10"><a href="#cb8-10"></a>     <span class="kw">type</span> Type = A</span>
+<span id="cb8-11"><a href="#cb8-11"></a>     <span class="kw">override</span> <span class="kw">def</span> <span class="fu">apply</span>(a: A): Type = a</span>
+<span id="cb8-12"><a href="#cb8-12"></a>     <span class="kw">override</span> <span class="kw">def</span> toF[F[_]](fa: F[A]): F[Type] = fa</span>
+<span id="cb8-13"><a href="#cb8-13"></a>     <span class="kw">override</span> <span class="kw">def</span> fromF[F[_]](fa: F[Type]): F[A] = fa</span>
+<span id="cb8-14"><a href="#cb8-14"></a>  }</span>
+<span id="cb8-15"><a href="#cb8-15"></a></span>
+<span id="cb8-16"><a href="#cb8-16"></a> <span class="kw">val</span> Mult: NewType[Int] = newType[Int]</span>
+<span id="cb8-17"><a href="#cb8-17"></a> <span class="kw">type</span> Mult = Mult.<span class="fu">Type</span></span>
+<span id="cb8-18"><a href="#cb8-18"></a></span></code></pre></div>
+<p>Now, to construct a list of Mult’s, instead of:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb9-1"><a href="#cb9-1"></a></span>
+<span id="cb9-2"><a href="#cb9-2"></a>  <span class="kw">val</span> list1: List[Mult] = List(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>).<span class="fu">map</span>(<span class="fu">Mult</span>(_))</span>
+<span id="cb9-3"><a href="#cb9-3"></a></span></code></pre></div>
+<p>we can now:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb10-1"><a href="#cb10-1"></a></span>
+<span id="cb10-2"><a href="#cb10-2"></a>  <span class="kw">val</span> list2: List[Mult] = Mult.<span class="fu">toF</span>(List(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>))</span>
+<span id="cb10-3"><a href="#cb10-3"></a></span></code></pre></div>
+<p>But it is not just for lists. It can allow sharing of typeclass implementations too. Consider a typeclass for equality.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb11-1"><a href="#cb11-1"></a></span>
+<span id="cb11-2"><a href="#cb11-2"></a> <span class="kw">trait</span> Eq[A] {</span>
+<span id="cb11-3"><a href="#cb11-3"></a>   <span class="kw">def</span> <span class="fu">eqv</span>(x: A, y: A): Boolean</span>
+<span id="cb11-4"><a href="#cb11-4"></a> }</span>
+<span id="cb11-5"><a href="#cb11-5"></a></span></code></pre></div>
+<p>But it is not just for lists. It can allow sharing of typeclass implementations too. Consider a typeclass for equality. To implement an instance for Mult manually:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb12-1"><a href="#cb12-1"></a></span>
+<span id="cb12-2"><a href="#cb12-2"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqMultManual: Eq[Mult] =</span>
+<span id="cb12-3"><a href="#cb12-3"></a>   <span class="kw">new</span> Eq[Mult] {</span>
+<span id="cb12-4"><a href="#cb12-4"></a>   <span class="kw">override</span> <span class="kw">def</span> <span class="fu">eqv</span>(x: Mult, y: Mult): Boolean = x == y</span>
+<span id="cb12-5"><a href="#cb12-5"></a> }</span>
+<span id="cb12-6"><a href="#cb12-6"></a></span></code></pre></div>
+<p>But Eq fits the type constructor signature F[_], so we can use NewType.toF on it too. If we already have an instance for Int, we can promote it to an instance for Mult:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqInt: Eq[Int] = ???</span>
+<span id="cb13-2"><a href="#cb13-2"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqMult: Eq[Mult] = Mult.<span class="fu">toF</span>(eqInt)</span>
+<span id="cb13-3"><a href="#cb13-3"></a></span>
+<span id="cb13-4"><a href="#cb13-4"></a> <span class="co">// …and use them:</span></span>
+<span id="cb13-5"><a href="#cb13-5"></a></span>
+<span id="cb13-6"><a href="#cb13-6"></a> <span class="kw">val</span> sameMult = implicitly[Eq[Mult]].<span class="fu">eqv</span>(<span class="fu">Mult</span>(<span class="dv">1</span>), <span class="fu">Mult</span>(<span class="dv">1</span>))</span>
+<span id="cb13-7"><a href="#cb13-7"></a> <span class="kw">val</span> sameInt = implicitly[Eq[Int]].<span class="fu">eqv</span>(<span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb13-8"><a href="#cb13-8"></a></span>
+<span id="cb13-9"><a href="#cb13-9"></a> <span class="co">//Similarly, we can ‘demote’ an instance of Eq[Mult] to Eq[Int], since Mult really is an Int under the covers.</span></span>
+<span id="cb13-10"><a href="#cb13-10"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqMult: Eq[Mult] = ???</span>
+<span id="cb13-11"><a href="#cb13-11"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqInt: Eq[Int] = Mult.<span class="fu">fromF</span>(eqMult)</span>
+<span id="cb13-12"><a href="#cb13-12"></a></span></code></pre></div>
+<h3 id="type-constructor-ergonomics">Type constructor ergonomics</h3>
+<p>If the typeclass parameter is contravariant, we can omit the toF() call, in the same way we dropped the unwrap() method. If Eq[A] had been Eq[-A], we could have written:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqInt: Eq[Int] = ???</span>
+<span id="cb14-2"><a href="#cb14-2"></a></span>
+<span id="cb14-3"><a href="#cb14-3"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqMult: Eq[Mult] = Mult.<span class="fu">toF</span>(eqInt)</span>
+<span id="cb14-4"><a href="#cb14-4"></a></span>
+<span id="cb14-5"><a href="#cb14-5"></a> <span class="co">// If the typeclass parameter is covariant, the fromF method becomes redundant”</span></span>
+<span id="cb14-6"><a href="#cb14-6"></a> <span class="kw">trait</span> CovariantTypeclass[+A] { … }</span>
+<span id="cb14-7"><a href="#cb14-7"></a></span>
+<span id="cb14-8"><a href="#cb14-8"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqMult: CovariantTypeclass[Mult] = ???</span>
+<span id="cb14-9"><a href="#cb14-9"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqInt: CovariantTypeclass[Int] = Mult.<span class="fu">fromF</span>(eqMult)</span>
+<span id="cb14-10"><a href="#cb14-10"></a> <span class="kw">implicit</span> <span class="kw">val</span> eqInt2: CovariantTypeclass[Int] = eqMult <span class="co">// fromF not required</span></span>
+<span id="cb14-11"><a href="#cb14-11"></a> ….. etc</span>
+<span id="cb14-12"><a href="#cb14-12"></a></span></code></pre></div>
+<p>This is not the final cut by the way. A better module structure is defined for this new type mechanism in an upcoming library in zio world. Thanks to Leigh Perry (https://twitter.com/leigh_perry) for an in-depth proofread of the first version of my content. All of the detailed explanations are added by Leigh later on, which inturn made the original content more accessible. There is another write-up on the same concept which you don’t want to miss out: https://francistoth.github.io/2020/04/11/newtypes.html Thanks to John De Goes once again for the whole idea, and all this blog is adding some detail. I highly recommend John De Goes’s spartan session in patreon to see a different perspective towards simplifying functional programming in Scala. What you have seen above is just a very small portion of a series of 1–2 hrs session that happens weekly. I highly recommend these sessions for anyone out there who is keen to learn and contribute back to open source !</p>
+    </section>
+</article>
+
+    </main>
+
+    <footer>
+        Site proudly generated by
+        <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+    </footer>
+</body>
+
+</html>
