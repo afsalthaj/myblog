@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Afsal's Blog - Monad Transformers</title>
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+
+<body>
+    <header>
+        <div class="logo">
+            <a href="../">Afsal's Blog</a>
+        </div>
+        <nav>
+            <a href="../">Home</a>
+            <a href="../about.html">About</a>
+            <a href="../contact.html">Contact</a>
+            <a href="../archive.html">Archive</a>
+        </nav>
+    </header>
+
+    <main role="main">
+        <h1>Monad Transformers</h1>
+        <article>
+    <section class="header">
+        Posted on April 16, 2018
+        
+    </section>
+    <section>
+        <h2 id="monad-transformers-in-scala">Monad Transformers in Scala</h2>
+<p>This is a simplified explanation of Monad transformers in Scala. I highly recommend you reading my blog on “Birth of Monad Transformers through Compose” in Haskell once you get a gist of what monad transformer is from this blog.</p>
+<p>Let’s start with a question.</p>
+<p>Do you think the type List is a Monad? Yes, it has got a bind (flatMap) and unit (apply) method that satisfy the requirements to be monad + it follows monad laws. The monad list can also be termed as an effect because “given a type A, lifting it (somehow) as List adds new capabilities to it, such that, we can now aggregate over A, find the sum of A and so on and so forth. The type A never had these capabilities when it was existing by itself, until we lifted it to become a List. That was a deep dive straight away. Let’s take a breath now and say — Well, if you lift your type to a Monadic Effect, it now possess more capability. Get into a spaceship and say now YOU are capable of moving to space — Spaceship Monad!</p>
+<p>Similarly, when we lift A to the effectOption, we say now A has another capability — A can have a defined absence — None. Now, we never want to throw new Exception to mark the absence of A.</p>
+<p>Let’s lift the type A to another effect, scala.util.Try. Now A can be a Failure or a Success and not just A. The type A inherently has the capability to handle failure. I hope, you almost got the point now. This is more or less a conceptual understanding of what effects are, and we are naming it to be a “Monad”. Pause here and play with Monads.</p>
+<h3 id="effect-from-a-different-angle">Effect from a different angle</h3>
+<p>From another angle, we say any computation that should potentially yield A would become more intuitive and useful if it is yielding <code>A</code> under an effect, instead of a raw <code>A</code> . A typical example is trying to get an account from an account repository by passing an Id. If the computation has a return type of Account, it means, it should always exist. We want the computation’s return type to expose the fact that, account may or may not exist. In other words, it should return an Account under an effect — Option. Hence you may find the second get function in the below example to be more sensible.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1"></a></span>
+<span id="cb1-2"><a href="#cb1-2"></a>  <span class="kw">def</span> get[Account, Id](id : Id): Repository =&gt; Account = ???</span>
+<span id="cb1-3"><a href="#cb1-3"></a>  <span class="kw">def</span> get[Account, Id](id: Id): Respository =&gt; Option[Account] = ???</span>
+<span id="cb1-4"><a href="#cb1-4"></a></span></code></pre></div>
+<p>Was that effect enough?</p>
+<p>Well, we said the repository may or may not provide an account, and hence we returned an Option of account. We know the computation is under the effect Option. But is that enough to depict the behaviour of a database operation?</p>
+<p>What if the operation resulted in a database failure and you want to tell that to the user of the function <code>get</code>?. This simply means the result should be “either” a <code>database exception</code> “or” <code>Option[A]</code>.</p>
+<p>In other words, we need to lift Option[A] to another effect that can handle a database exception. We can use scalaz’s either / (if using cats, you can rely on scala’s <code>Either</code> for the rest of the blog) to depict this behaviour. The get function hence returns a DatabaseException / Option[A].</p>
+<p>At this point you have fairly a complex return type that is basically a stack of two effects — Option and on top of it, /[DatabaseException, ?].</p>
+<h3 id="multiple-effects-and-monad-transformers.">Multiple Effects and Monad Transformers.</h3>
+<p>You are almost convinced that any computation can yield effects that are stacked upon each other similar to <code>DatabaseException \/ Option[Account]</code>.</p>
+<p>However, stacking the effects leads to difficulty in extracting the actual value that we need to further execute the rest of the computation with Account. We wish the stacked effect was just acting as one single effect — one single Monad, so that we can flatMap over it or map over it and continue the operation; something like this:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb2-1"><a href="#cb2-1"></a></span>
+<span id="cb2-2"><a href="#cb2-2"></a>  <span class="kw">trait</span> Repository</span>
+<span id="cb2-3"><a href="#cb2-3"></a>  <span class="kw">trait</span> DatabaseException</span>
+<span id="cb2-4"><a href="#cb2-4"></a></span>
+<span id="cb2-5"><a href="#cb2-5"></a>  <span class="kw">def</span> get[Account, Id](id: Id): Repository =&gt; DatabaseException \/ Option[Account] = ???</span>
+<span id="cb2-6"><a href="#cb2-6"></a></span></code></pre></div>
+<p>The only way to make that happen is Monad Transformers . We are saying we need a single effect that depicts the multiple layered effect. We use scalaz’s <code>OptionT</code> monad transformer to depict the effect of returning a value under the effectOption which is in turn, under the effect <code>\/</code></p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1"></a></span>
+<span id="cb3-2"><a href="#cb3-2"></a>  <span class="kw">sealed</span> <span class="kw">trait</span> Account</span>
+<span id="cb3-3"><a href="#cb3-3"></a>  <span class="kw">case</span> <span class="kw">object</span> SavingsAccount <span class="kw">extends</span> Account</span>
+<span id="cb3-4"><a href="#cb3-4"></a>  <span class="kw">case</span> <span class="kw">object</span> InvestmentAccount <span class="kw">extends</span> Account</span>
+<span id="cb3-5"><a href="#cb3-5"></a></span>
+<span id="cb3-6"><a href="#cb3-6"></a></span>
+<span id="cb3-7"><a href="#cb3-7"></a>  <span class="kw">val</span> optionalAccount: Option[Account] = Some(savingsAccount)</span>
+<span id="cb3-8"><a href="#cb3-8"></a></span>
+<span id="cb3-9"><a href="#cb3-9"></a>  <span class="co">// Practically this is not how you would end up having a throwable on left. This is just to allign the types.</span></span>
+<span id="cb3-10"><a href="#cb3-10"></a>  <span class="kw">val</span> optionalAccountWithEitherEffect: Throwable \/ Option[A] =</span>
+<span id="cb3-11"><a href="#cb3-11"></a>    optionalAccount.<span class="fu">right</span></span>
+<span id="cb3-12"><a href="#cb3-12"></a></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1"></a></span>
+<span id="cb4-2"><a href="#cb4-2"></a>  <span class="kw">type</span> EitherEffect[A] = Throwable \/ A</span>
+<span id="cb4-3"><a href="#cb4-3"></a></span>
+<span id="cb4-4"><a href="#cb4-4"></a>  <span class="kw">val</span> singleLayeredEffect =</span>
+<span id="cb4-5"><a href="#cb4-5"></a>    OptionT[EitherEffect, Account] {  optionalAccountWithEitherEffect  }</span>
+<span id="cb4-6"><a href="#cb4-6"></a></span>
+<span id="cb4-7"><a href="#cb4-7"></a>  singleLayeredEffect.<span class="fu">map</span> { account =&gt; account.<span class="fu">debit</span> } <span class="co">// do some computation with account straight away</span></span>
+<span id="cb4-8"><a href="#cb4-8"></a>  <span class="co">// OptionT[EitherEffect, Account]</span></span>
+<span id="cb4-9"><a href="#cb4-9"></a></span></code></pre></div>
+<p>You might need to stare at it for a while. When you had another effect from thin air wrapping your actual effect, you somehow want to make sure that you still have the capability to peal off all your effects with a single operation (in this case, map) and get the value without any sort of nested for comprehensions, and that’s all MonadTransformer does! In the above example, the monad transformer OptionT converts an effect of <code>Option</code> layered with <code>\/[Throwable, ?]</code> to one single effect OptionT that makes you feel like it is still an option and you are flatMapping over it.</p>
+<h3 id="mechanism-behind-monad-transformers-optional-read">Mechanism behind Monad Transformers (Optional Read)</h3>
+<p>We have a type called Compose that can be constructed using two type constructors f and g and a type a. This means <code>kind</code> of <code>Compose</code> is <code>(* -&gt; *) -&gt; (* -&gt; *) -&gt; (*) -&gt; *</code></p>
+<p>Let’s spit out a few Haskell here showing what <code>Compose</code> is, because it’s always good to get around understanding these concepts in Haskell.</p>
+<p>We will create instances of <code>Applicative</code>, <code>Functor</code> and <code>Monad</code> for <code>Compose</code></p>
+<p>If you are not familiar with the syntax then all you need to understand here is <code>Compose[F[_], G[_], A]</code> cannot have an instance of <code>Monad</code> unless we know more about <code>G[_]</code>.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1"></a></span>
+<span id="cb5-2"><a href="#cb5-2"></a>  <span class="op">//</span> <span class="kw">case</span> <span class="kw">class</span> <span class="dt">Compose</span>[<span class="dt">F</span>[_], <span class="dt">G</span>[_], <span class="dt">A</span>](value<span class="op">:</span> <span class="dt">F</span>[<span class="dt">G</span>[<span class="dt">A</span>]])</span>
+<span id="cb5-3"><a href="#cb5-3"></a>  <span class="kw">newtype</span> <span class="dt">Compose</span> f g a <span class="ot">=</span></span>
+<span id="cb5-4"><a href="#cb5-4"></a>    <span class="dt">Compose</span> (f (g a)) <span class="kw">deriving</span> (<span class="dt">Show</span>, <span class="dt">Eq</span>)</span>
+<span id="cb5-5"><a href="#cb5-5"></a></span>
+<span id="cb5-6"><a href="#cb5-6"></a>  <span class="kw">instance</span> (<span class="dt">Functor</span> f, <span class="dt">Functor</span> g) <span class="ot">=&gt;</span></span>
+<span id="cb5-7"><a href="#cb5-7"></a>    <span class="dt">Functor</span> (<span class="dt">Compose</span> f g) <span class="kw">where</span></span>
+<span id="cb5-8"><a href="#cb5-8"></a>      (<span class="op">&lt;$&gt;</span>) f (<span class="dt">Compose</span> fga)  <span class="ot">=</span> <span class="dt">Compose</span> ((\ga <span class="ot">-&gt;</span> f <span class="op">&lt;$&gt;</span> ga)  <span class="op">&lt;$&gt;</span> fga)</span>
+<span id="cb5-9"><a href="#cb5-9"></a></span>
+<span id="cb5-10"><a href="#cb5-10"></a>  <span class="kw">instance</span> (<span class="dt">Applicative</span> f, <span class="dt">Applicative</span> g) <span class="ot">=&gt;</span></span>
+<span id="cb5-11"><a href="#cb5-11"></a>    <span class="dt">Applicative</span> (<span class="dt">Compose</span> f g) <span class="kw">where</span></span>
+<span id="cb5-12"><a href="#cb5-12"></a></span>
+<span id="cb5-13"><a href="#cb5-13"></a>    <span class="fu">pure</span> a <span class="ot">=</span> <span class="dt">Compose</span> (<span class="fu">pure</span> (<span class="fu">pure</span> a))</span>
+<span id="cb5-14"><a href="#cb5-14"></a>    (<span class="op">&lt;*&gt;</span>) (<span class="dt">Compose</span> fgab) (<span class="dt">Compose</span> fga) <span class="ot">=</span> <span class="dt">Compose</span> (lift2 (<span class="op">&lt;*&gt;</span>) fgab  fga)</span>
+<span id="cb5-15"><a href="#cb5-15"></a></span>
+<span id="cb5-16"><a href="#cb5-16"></a>  <span class="co">-- Its impossible to implement bind, but if we know g is &quot;Maybe&quot; as an example, then its possible.</span></span>
+<span id="cb5-17"><a href="#cb5-17"></a>  <span class="co">-- However when specialising G, it becomes Monad Transformers and not actually Compose.</span></span>
+<span id="cb5-18"><a href="#cb5-18"></a>  <span class="co">-- Compose[F[_], Option, A] &lt;=&gt; OptionT[F[_], A]</span></span>
+<span id="cb5-19"><a href="#cb5-19"></a></span>
+<span id="cb5-20"><a href="#cb5-20"></a>  <span class="kw">instance</span> (<span class="dt">Monad</span> f, <span class="dt">Monad</span> g) <span class="ot">=&gt;</span></span>
+<span id="cb5-21"><a href="#cb5-21"></a>    <span class="dt">Monad</span> (<span class="dt">Compose</span> f g) <span class="kw">where</span></span>
+<span id="cb5-22"><a href="#cb5-22"></a>    (<span class="op">&gt;&gt;=</span>) <span class="ot">=</span> <span class="fu">error</span> <span class="st">&quot;Not possible&quot;</span></span></code></pre></div>
+<p>In our example, which is <code>Either[Throwable, Option[A]</code> (or <code>Throwable \/ Option[A]</code>) can be easily lifted to Compose and do functor (map) operations, and applicative operations, but not monadic operations.</p>
+<p>To detail it further, a monad instance of Compose requires defining a bind as given below:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1"></a></span>
+<span id="cb6-2"><a href="#cb6-2"></a><span class="ot">  (&gt;&gt;=) ::</span> (a <span class="ot">-&gt;</span> <span class="dt">Compose</span> f g b) <span class="ot">-&gt;</span> <span class="dt">Compose</span> f g a <span class="ot">-&gt;</span> <span class="dt">Compose</span> f g b</span>
+<span id="cb6-3"><a href="#cb6-3"></a></span></code></pre></div>
+<p>or in scala,</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1"></a></span>
+<span id="cb7-2"><a href="#cb7-2"></a>  <span class="kw">def</span> <span class="fu">flatMap</span> (f: Compose[F[_], G[_], A], g: A =&gt; Compose[F[_], G[_], B]): Compose[F[_], G[_], B] = ???</span>
+<span id="cb7-3"><a href="#cb7-3"></a></span></code></pre></div>
+<p>However, it is impossible to implement bind for Compose even if we say f and g are monads. Please try them out to convince yourself.</p>
+<p>This further implies we cannot do things like:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1"></a></span>
+<span id="cb8-2"><a href="#cb8-2"></a>  <span class="kw">val</span> id: Either[Throwable, Option[Int]]</span>
+<span id="cb8-3"><a href="#cb8-3"></a></span>
+<span id="cb8-4"><a href="#cb8-4"></a>  <span class="kw">val</span> <span class="fu">getUserFromDb</span>(id: Int): Either[Throwable, Option[Long]]</span>
+<span id="cb8-5"><a href="#cb8-5"></a></span>
+<span id="cb8-6"><a href="#cb8-6"></a>  <span class="fu">Compose</span>(id).<span class="fu">flatMap</span>(<span class="fu">getUserFromDb</span>(_).<span class="fu">map</span>(Compose.<span class="fu">apply</span>))</span>
+<span id="cb8-7"><a href="#cb8-7"></a></span></code></pre></div>
+<p>That said, it doesn’t mean <code>Compose</code> (refer <code>Nested</code> in cats) is a type that’s of no use. For instance, it has got a Traversable which makes it really useful.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb9-1"><a href="#cb9-1"></a></span>
+<span id="cb9-2"><a href="#cb9-2"></a>  <span class="kw">val</span> id: Either[Throwable, Option[Int]]</span>
+<span id="cb9-3"><a href="#cb9-3"></a></span>
+<span id="cb9-4"><a href="#cb9-4"></a>  <span class="kw">def</span> <span class="fu">getUserFromDb</span>(id: Int): IO[Either[Throwable, Option[User]]</span>
+<span id="cb9-5"><a href="#cb9-5"></a></span>
+<span id="cb9-6"><a href="#cb9-6"></a>  <span class="kw">val</span> user: IO[Compose[Throwable, Option[User]] =</span>
+<span id="cb9-7"><a href="#cb9-7"></a>    <span class="fu">Compose</span>(id).<span class="fu">traverse</span>(<span class="fu">getUserFromDb</span>(_).<span class="fu">map</span>(Compose.<span class="fu">apply</span>))</span>
+<span id="cb9-8"><a href="#cb9-8"></a></span></code></pre></div>
+<p>This also implies, there isn’t always a need of monad transformers to deal with composed effects.</p>
+<h4 id="summary">Summary</h4>
+<p>The issue of composing monads is often addressed with a custom-written version of each monad that’s specifically constructed for composition. This thing is called a monad transformer.</p>
+<p>There is something more to it before we conclude.</p>
+<p>If you ever tried before to implement general monad composition, then you would have found that in order to implement join for nested monads F and G, you’d have to write a type such as F[G[F[G[A]]]=&gt; F[G[A]] and that can’t be written generally. However, if G happens to have a traverse instance, we can sequence to turn G[F[_]] into F[G[_]], leading to F[F[G[G[A]]]], which in turn allow us to join the adjacent F layers as well as the adjacent G layers using their respective Monad instances. I am not going to explain how, but give it a try.</p>
+<h3 id="where-to-go-from-here">Where to go from here ?</h3>
+<p>It’s good to stop here, because you already got the gist of what Monad Transfomres are, and how to use them. Refer to typelevel cats and scalaz documentations in Google if you are in Scala world. Also, take a look at ZIO and it’s libraries that took a different approach towards Monad Transformers in Scala handling performance issues.</p>
+<h4 id="hope-you-find-the-blog-useful-in-solving-your-problems.">Hope you find the blog useful in solving your problems.</h4>
+    </section>
+</article>
+
+    </main>
+
+    <footer>
+        Site proudly generated by
+        <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+    </footer>
+</body>
+
+</html>
