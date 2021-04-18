@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Afsal's Blog - Fix point types in Scala. A quick brain teaser</title>
+    <title>Afsal's Blog - Fix point types and Y combinator - in Scala.</title>
     <link rel="stylesheet" href="../css/default.css" />
 </head>
 
@@ -23,7 +23,7 @@
     </header>
 
     <main role="main">
-        <h1>Fix point types in Scala. A quick brain teaser</h1>
+        <h1>Fix point types and Y combinator - in Scala.</h1>
         <article>
     <section class="header">
         Posted on April 15, 2021
@@ -32,115 +32,317 @@
     <section>
         <p>Let’s do some math.</p>
 <p>If we continuously do <code>cosine</code> of 0 and keep on applying <code>cosine</code> over the result, we end up in a number finally that gets <code>fixed</code> forever. The number is 0.73908513321516067.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1"></a></span>
-<span id="cb1-2"><a href="#cb1-2"></a>  <span class="fu">cos</span>(<span class="fu">cos</span>(<span class="fu">cos</span>(<span class="fu">cos</span>(x))))</span>
-<span id="cb1-3"><a href="#cb1-3"></a></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  <span class="fu">cos</span>(<span class="fu">cos</span>(<span class="fu">cos</span>(<span class="fu">cos</span>(x))))</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a></span></code></pre></div>
 <p>Ofcourse this example is a blatant copy from one of the most wonderful blogs ever written about fix-points in Scheme language - https://mvanier.livejournal.com/2897.html.</p>
-<p>You can choose to read it. But this blog slightly takes a different turn for explaining things to reach the same goal.</p>
-<p>Hence the fix-point of <code>cos</code> is <code>x</code> if <code>cos(x) = x</code>. But a fix-point may not be always a real number. It could be even a <code>type</code>. A <code>function</code> is a <code>type</code> indeed.</p>
+<p>You can choose to read it. This blog is a mere adoption of the ideas presented in the blog, but in Scala language.</p>
+<h2 id="fix-point-being-a-function">Fix point being a function</h2>
+<p>So, yes, the fix-point of <code>cos</code> is <code>x</code> if <code>cos(x) = x</code>. But a fix-point may not be always a real number. It could be even a <code>type</code>. A <code>function</code> is a <code>type</code> indeed.</p>
 <p>Sure what does that mean? Well if <code>fix-point</code> of a function like <code>cos</code> is a <code>real-number</code>, and if you say that a <code>fix-point</code> can be a <code>function</code> itself, that means the following:</p>
-<pre><code>
-There exists a `function`, whose fix-point can be a `funtion` itself. Hmmmmm. 
-</code></pre>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a>There exists a `function`, whose fix-point can be a `funtion` itself. Hmmmmm.</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a></span></code></pre></div>
 <h2 id="stop-explaining.-show-an-example.">Stop explaining. Show an example.</h2>
 <p>A factorial of a number 3 is 3 * 2 * 1. It’s implementation is as follows:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1"></a></span>
-<span id="cb3-2"><a href="#cb3-2"></a>  <span class="kw">val</span> factorial: Int =&gt; Int = </span>
-<span id="cb3-3"><a href="#cb3-3"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">factorial</span>(n - <span class="dv">1</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>  <span class="kw">val</span> factorial: Int =&gt; Int =</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">factorial</span>(n - <span class="dv">1</span>)</span></code></pre></div>
 <p>Sure, that’s easy. But let’s say someone asked you to implement the same <code>factorial</code> such that the name of the function shouldn’t come in the body. Before you ask <code>why</code>, here is a question for you. Why are we implementing <code>sort</code> in an interview while most of us (that I have met) never had to implement a sort ever in our professional career?</p>
 <p>Consider it as a challenge and move on with the rest of the blog.</p>
 <p>Answering the question, well may be I can do</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1"></a></span>
-<span id="cb4-2"><a href="#cb4-2"></a>  <span class="kw">def</span> <span class="fu">factorial</span>(f: Int =&gt; Int): Int =&gt; Int = </span>
-<span id="cb4-3"><a href="#cb4-3"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">factorial</span>(f: Int =&gt; Int): Int =&gt; Int =</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>)</span></code></pre></div>
 <p>Ah, sure, but that’s not a factorial.</p>
 <p>Ofcourse, that’s not a factorial, so let’s call it as <code>almostFactorial</code>.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb5-1"><a href="#cb5-1"></a></span>
-<span id="cb5-2"><a href="#cb5-2"></a>   <span class="kw">def</span> <span class="fu">almostFactorial</span>(f: Int =&gt; Int): Int =&gt; Int = </span>
-<span id="cb5-3"><a href="#cb5-3"></a>     n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>   <span class="kw">def</span> <span class="fu">almostFactorial</span>(f: Int =&gt; Int): Int =&gt; Int =</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>     n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>)</span></code></pre></div>
 <p>Now we need to implement a sensible <code>factorial</code> in terms of <code>almostFactorial</code>. All of us know, the real factorial exists when the <code>f</code>( now staying as an argument in <code>almostFactorial</code>) is <code>almostFactorial</code> itself.</p>
 <p>i.e,</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1"></a></span>
-<span id="cb6-2"><a href="#cb6-2"></a>  <span class="kw">val</span> factorial: Int =&gt; Int = </span>
-<span id="cb6-3"><a href="#cb6-3"></a>    <span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(.....)))</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>  <span class="kw">val</span> factorial: Int =&gt; Int =</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>    <span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(.....)))</span></code></pre></div>
 <p>Well if you try to implement it, you will be writing it forever. Anyone who is not convinced yet, please try it out.</p>
 <p>Fine, let’s take a different approach then.</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1"></a></span>
-<span id="cb7-2"><a href="#cb7-2"></a> <span class="kw">val</span> factorial0: Int =&gt; Int = </span>
-<span id="cb7-3"><a href="#cb7-3"></a>   <span class="fu">almostFactorial</span>(identity)</span></code></pre></div>
-<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1"></a></span>
-<span id="cb8-2"><a href="#cb8-2"></a>  <span class="fu">factorial0</span>(<span class="dv">0</span>) <span class="co">// returns 1 ==&gt; works</span></span>
-<span id="cb8-3"><a href="#cb8-3"></a>  <span class="fu">factorial0</span>(<span class="dv">1</span>) <span class="co">// doesn't work, coz identity(n - 1) == identity(1 - 1) == identity(0) == 0</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a> <span class="kw">val</span> factorial0: Int =&gt; Int =</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>   <span class="fu">almostFactorial</span>(identity)</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  <span class="fu">factorial0</span>(<span class="dv">0</span>) <span class="co">// returns 1 ==&gt; works</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  <span class="fu">factorial0</span>(<span class="dv">1</span>) <span class="co">// doesn't work, coz identity(n - 1) == identity(1 - 1) == identity(0) == 0</span></span></code></pre></div>
 <p>So <code>factorial0</code> works only for zero. That’s fine for now.</p>
 <p>Let’s implement for factorial1.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb9-1"><a href="#cb9-1"></a></span>
-<span id="cb9-2"><a href="#cb9-2"></a> <span class="kw">val</span> factorial1 = </span>
-<span id="cb9-3"><a href="#cb9-3"></a>   <span class="fu">almostFactorial</span>(factorial0) <span class="co">// that works</span></span>
-<span id="cb9-4"><a href="#cb9-4"></a></span>
-<span id="cb9-5"><a href="#cb9-5"></a> <span class="kw">val</span> factorial2 = </span>
-<span id="cb9-6"><a href="#cb9-6"></a>   <span class="fu">almostFactorial</span>(factorial1) <span class="co">// that works too.</span></span>
-<span id="cb9-7"><a href="#cb9-7"></a></span>
-<span id="cb9-8"><a href="#cb9-8"></a> <span class="kw">val</span> factorial2_ = </span>
-<span id="cb9-9"><a href="#cb9-9"></a>   <span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(identity))) <span class="co">// that works too.</span></span>
-<span id="cb9-10"><a href="#cb9-10"></a></span>
-<span id="cb9-11"><a href="#cb9-11"></a> <span class="kw">val</span> factorialInfinity: Int =&gt; Int = </span>
-<span id="cb9-12"><a href="#cb9-12"></a>      <span class="fu">almostFactorial</span>(<span class="fu">almostFactorial</span>(almostFactorial.............<span class="fu">almostFactorial</span>(.........))) <span class="co">// forever</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a> val factorial1 <span class="ot">=</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>   almostFactorial(factorial0) <span class="op">//</span> that works</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a> val factorial2 <span class="ot">=</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true"></a>   almostFactorial(factorial1) <span class="op">//</span> that works too<span class="op">.</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true"></a> val factorial2_ <span class="ot">=</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true"></a>   almostFactorial(almostFactorial(almostFactorial(identity))) <span class="op">//</span> that works too<span class="op">.</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true"></a> val factorialInfinity<span class="op">:</span> <span class="dt">Int</span> <span class="ot">=&gt;</span> <span class="dt">Int</span> <span class="ot">=</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true"></a>      almostFactorial(almostFactorial(almostFactorial<span class="op">.............</span>almostFactorial(<span class="op">.........</span>))) <span class="op">//</span> forever</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true"></a></span></code></pre></div>
 <p>Ah, kind of making sense now. <code>factorialInfinity</code> is a function, which is a fixpoint of <code>almostFactorial</code>. Infact <code>factorialInfinitiy</code> is our real <code>factorial</code> implementation.</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb10-1"><a href="#cb10-1"></a></span>
-<span id="cb10-2"><a href="#cb10-2"></a> factorial = fix-point-of almostFactorial</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a> factorial = fix-point-of almostFactorial</span></code></pre></div>
 <p>Hmmm. I think its time to figure out what is this <code>fix-point-of</code>. Is there a function called <code>fix-point-of</code> that allows us to pass <code>almostFactorial</code> and return a real <code>factorial</code>. In other words, is there a function called <code>fix-point-of</code> that takes a function and returns the fix-point of that function.</p>
-<pre><code>
-def fixPointOf(f: &lt;someFn&gt;): fixPointOf_SomeFn
-</code></pre>
-<p>This <code>fixPointOf</code> is our famous y combinator. The <code>Y</code> combinator is the one that converts a function to its fix-point.</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb12-1"><a href="#cb12-1"></a></span>
-<span id="cb12-2"><a href="#cb12-2"></a> <span class="kw">val</span> factorial = <span class="fu">almostFactorial</span>(factorial)</span>
-<span id="cb12-3"><a href="#cb12-3"></a></span>
-<span id="cb12-4"><a href="#cb12-4"></a> implies,</span>
-<span id="cb12-5"><a href="#cb12-5"></a> </span>
-<span id="cb12-6"><a href="#cb12-6"></a><span class="co">// fix-point-fn = almostFactorial fix-point-fn</span></span>
-<span id="cb12-7"><a href="#cb12-7"></a></span>
-<span id="cb12-8"><a href="#cb12-8"></a><span class="co">// If we are building a function called fix-point-fn that takes `fn` as an argument then,</span></span>
-<span id="cb12-9"><a href="#cb12-9"></a><span class="co">// that means the following</span></span>
-<span id="cb12-10"><a href="#cb12-10"></a></span>
-<span id="cb12-11"><a href="#cb12-11"></a><span class="co">// fix-point-fn  fn = fn fix-point-fn</span></span>
-<span id="cb12-12"><a href="#cb12-12"></a><span class="co">// Rename fix-point-fn as Y, we will see later why</span></span>
-<span id="cb12-13"><a href="#cb12-13"></a><span class="co">// Y             fn = fn (Y fn)</span></span>
-<span id="cb12-14"><a href="#cb12-14"></a><span class="co">// or, def Y (f: Fn) = f(Y(f))</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">fixPointOf</span>(f: &lt;someFn&gt;): fixPointOf_SomeFn</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a></span></code></pre></div>
+<p>This <code>fixPointOf</code> is also called “y combinator”. The <code>Y</code> combinator is the one that converts a function to its fix-point. However, before we call it as a combinator, let’s call it as a function, because, to be a combinator it needs to satisfy a few conditions that we will explain later.</p>
+<p>So, let’s implement <code>y</code> such that it can take a function and returns its fix-point</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a> <span class="kw">val</span> factorial = <span class="fu">almostFactorial</span>(factorial)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a> implies,</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a><span class="co">// fix-point-fn = almostFactorial fix-point-fn</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a><span class="co">// If we are building a function called fix-point-fn that takes `fn` as an argument then,</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true"></a><span class="co">// that means the following</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true"></a></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true"></a><span class="co">// fix-point-fn  fn = fn fix-point-fn</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true"></a><span class="co">// Rename fix-point-fn as Y, we will see later why</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true"></a><span class="co">// Y             fn = fn (Y fn)</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true"></a><span class="co">// or, def Y (f: Fn) = f(Y(f))</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true"></a></span></code></pre></div>
 <p>The above pseudo-code in Scala is</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1"></a></span>
-<span id="cb13-2"><a href="#cb13-2"></a> <span class="co">// (A =&gt; A) =&gt; (A =&gt; A) is alligned to the signature of almostFactorial</span></span>
-<span id="cb13-3"><a href="#cb13-3"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)) = <span class="fu">f</span>(<span class="fu">Y</span>(f))</span>
-<span id="cb13-4"><a href="#cb13-4"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial) <span class="co">// Stack overflow haha</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a> <span class="co">// (A =&gt; A) =&gt; (A =&gt; A) is alligned to the signature of almostFactorial</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)) = <span class="fu">f</span>(<span class="fu">Y</span>(f))</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial) <span class="co">// Stack overflow haha</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a></span></code></pre></div>
 <p>Stack overflow is, when you call Y the following thing happens:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1"></a> </span>
-<span id="cb14-2"><a href="#cb14-2"></a> <span class="fu">f</span>(<span class="fu">Y</span>(f)) == </span>
-<span id="cb14-3"><a href="#cb14-3"></a>   <span class="fu">f</span>(<span class="fu">f</span>(<span class="fu">f</span>(<span class="fu">f</span>(f.......))))</span>
-<span id="cb14-4"><a href="#cb14-4"></a>  </span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a> <span class="fu">f</span>(<span class="fu">Y</span>(f)) ==</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>   <span class="fu">f</span>(<span class="fu">f</span>(<span class="fu">f</span>(<span class="fu">f</span>(f.......))))</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a></span></code></pre></div>
 <p>In other words, it tries to compute the fix-point function for you and it never ends.</p>
 <p>Lambda saves us from this stack overflow - in a surprising way.</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb15-1"><a href="#cb15-1"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span>
-<span id="cb15-2"><a href="#cb15-2"></a>  <span class="co">// same as</span></span>
-<span id="cb15-3"><a href="#cb15-3"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a)) <span class="co">// Stack safe</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a>  <span class="co">// same as</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a)) <span class="co">// Stack safe</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a></span></code></pre></div>
 <p>Now my factorial implementation is</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb16-1"><a href="#cb16-1"></a></span>
-<span id="cb16-2"><a href="#cb16-2"></a> <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
-<span id="cb16-3"><a href="#cb16-3"></a></span>
-<span id="cb16-4"><a href="#cb16-4"></a> <span class="co">// factorial(3) is 6</span></span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a> <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a> <span class="co">// factorial(3) is 6</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true"></a></span></code></pre></div>
 <p>Now, that works. However, we could further improve things.</p>
 <p>The <code>Y</code> function that we defined (the function that takes another function and returns a fix-point function) has a restricted shape.</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb17-1"><a href="#cb17-1"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span></code></pre></div>
-<p><code>(A =&gt; A) =&gt; (A =&gt; A)</code> is equivalent to <code>A =&gt; A</code> in types. In other words. The following will compile.</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb18-1"><a href="#cb18-1"></a></span>
-<span id="cb18-2"><a href="#cb18-2"></a>    <span class="kw">def</span> Y[A](f: A =&gt; A): A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span>
-<span id="cb18-3"><a href="#cb18-3"></a>    <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; A) =&gt; (A =&gt; A)): A =&gt; A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a></span></code></pre></div>
+<p><code>(A =&gt; A) =&gt; (A =&gt; A)</code> is equivalent to <code>A =&gt; A</code> in types. In other words.</p>
+<p>The following will compile.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a>    <span class="kw">def</span> Y[A](f: A =&gt; A): A = <span class="fu">f</span>(<span class="fu">Y</span>(f)) <span class="co">// Stack unsafe</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a>    <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a></span></code></pre></div>
 <p>However, it’s sort of fairly hacky to make our latest <code>Y</code> stacksafe using our lambda technique. Try yourself if you are having a doubt. For this reaso, may be we can keep the same original <code>Y</code> as it is but with another minor change. We can make the return type a <code>B</code> instead of <code>A</code> to allow more flexiblity.</p>
 <p>In the case of <code>factorial</code> which is <code>Int =&gt; Int</code>, <code>B</code> is <code>A</code> itself.</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb19-1"><a href="#cb19-1"></a></span>
-<span id="cb19-2"><a href="#cb19-2"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; B) =&gt; (A =&gt; B)): A =&gt; B = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a)) <span class="co">// Stack safe</span></span>
-<span id="cb19-3"><a href="#cb19-3"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
-<span id="cb19-4"><a href="#cb19-4"></a></span></code></pre></div>
-<p>Hurray, this blog is incomplete, and yet to be cleaned up. Thanks for your patience. Catch you soon!</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a>  <span class="kw">def</span> Y[A](f: (A =&gt; B) =&gt; (A =&gt; B)): A =&gt; B = <span class="fu">f</span>(a =&gt; <span class="fu">Y</span>(f)(a)) <span class="co">// Stack safe</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a>  <span class="kw">val</span> factorial = <span class="fu">Y</span>(almostFactorial)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a></span></code></pre></div>
+<h2 id="is-our-y-a-combinator---no">Is our <code>y</code> a combinator - No!</h2>
+<p>To become a combinator, the implementation of <code>y</code> shouldn’t have any free variables in it.</p>
+<p>For example: The below lambda is a combinator, because you can replace <code>f</code> with its implementation in all occurances of <code>f</code>.</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a><span class="kw">val</span> f = (x: Int) =&gt; x + <span class="dv">1</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a></span></code></pre></div>
+<p>However, our <code>y</code> is not a combinator, the implementation <code>f(y(f))</code> has a free variable, and that’s <code>y</code> itself. An explicit recursion here made it not call as a combinator.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a><span class="kw">def</span> y[A, B] = (f: (A =&gt; B) =&gt; (A =&gt; B)) =&gt; <span class="fu">f</span>(<span class="fu">y</span>(f))</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true"></a></span></code></pre></div>
+<p>Well let’s revisit our factorial, and what really went wrong. Let’s revisit abstracting out recursion, and call our function <code>partFactorial</code>.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">partFactorial</span>(f: Int =&gt; Int): Int =&gt; Int = n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a></span></code></pre></div>
+<p>Our real factorial is when <code>f</code> is partFactorial itself.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a><span class="co">// Will not compile</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true"></a><span class="co">// well partFactorial _ is of the type `Int =&gt; Int =&gt; Int =&gt; Int`.</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true"></a><span class="co">// However, `partFactorial` method above accepts `Int =&gt; Int`</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true"></a><span class="kw">def</span> factorial = <span class="fu">partFactorial</span>(partFactorial _) </span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a></span></code></pre></div>
+<p>Ok, let’s do a hack. We have Any in scala, and see how it goes.</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">partFactorialv0</span>(self: Any): Int =&gt; Int = </span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true"></a>  n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self)(n - <span class="dv">1</span>)</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true"></a></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">factorial</span>(n: Int) = <span class="fu">partFactorialv0</span>(partFactorialv0 _)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true"></a><span class="co">// Works, factorial(3) == 6</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true"></a></span></code></pre></div>
+<p>Why did we do this? Well, let’s extract out our <code>almostFactorial</code> discussed above from this implementation.</p>
+<p>Repeating <code>almostFactorial</code> here:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true"></a></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">almostFactorial</span>(f: Int =&gt; Int): Int =&gt; Int = </span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true"></a>  n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n<span class="dv">-1</span>)</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true"></a></span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true"></a> <span class="kw">def</span> <span class="fu">partFactorialv1</span>(self: Any): Int =&gt; Int = {</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true"></a>    <span class="kw">val</span> f = self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self) <span class="co">// val f = self(self) </span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>) <span class="co">// almost n factorial</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true"></a>  }</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true"></a><span class="co">// Hmmm, almost there. But it could be written as:</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true"></a></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true"></a></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">partFactorialv2</span>(self: Any): Int =&gt; Int = {</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true"></a>    <span class="kw">val</span> f = self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self) <span class="co">// val f = self(self) </span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">f</span>(n - <span class="dv">1</span>) <span class="co">// almost n factorial</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true"></a>  }</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true"></a></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">partFactorialv3</span>(self: Any): Int =&gt; Int = {</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true"></a>    <span class="kw">val</span> selfSelf = self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self) <span class="co">// val f = self(self) </span></span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true"></a>    <span class="fu">almostFactorial</span>(selfSelf) <span class="co">// almost n factorial</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true"></a>  }</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true"></a></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true"></a><span class="co">// stack safety issues come into picture here, hence factorialV3(4) will not work</span></span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true"></a><span class="kw">def</span> factorialV3 = <span class="fu">partFactorialv3</span>(partFactorialv3 _) </span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true"></a></span></code></pre></div>
+<p>Sure, we kind of extracted/reused almostFactorial in our latest implementations. You might be wondering why we are doing this. But hold on, keep your patience and read on.</p>
+<p>Let’s get rid of partFactorialV3(partFactoriv3 _), let’s merge all of these into factorial</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true"></a></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true"></a> <span class="kw">def</span> partFactorialv4: Any =&gt; (Int =&gt; Int) = {</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true"></a>    (self: Any) =&gt; <span class="fu">almostFactorial</span>(self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self)) <span class="co">// almostFactorial self self</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true"></a>  }</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true"></a> <span class="kw">def</span> factorialV4: Int =&gt; Int = {</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true"></a>    <span class="kw">val</span> partFactorial4 = </span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true"></a>       (self: Any) =&gt; <span class="fu">almostFactorial</span>(self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self)) <span class="co">// almostFactorial self self</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true"></a></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true"></a>    <span class="fu">partFactorial4</span>(partFactorial4)   </span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true"></a>  }  </span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true"></a></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true"></a><span class="co">// Well, lets rename this partFactorial stuff</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true"></a> <span class="kw">def</span> factorialV5: Int =&gt; Int = {</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true"></a>    <span class="kw">val</span> x = </span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true"></a>       (self: Any) =&gt; <span class="fu">almostFactorial</span>(self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self)) <span class="co">// almostFactorial self self</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true"></a></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true"></a>    <span class="fu">x</span>(x)   </span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true"></a>  }</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true"></a></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true"></a><span class="co">// The trick {val x: A = a; x(x) } === ((x: A) =&gt; x(x))(a)</span></span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true"></a><span class="co">// Let's rewrite the above code to something like below.</span></span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true"></a></span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true"></a> <span class="kw">def</span> factorialV6: Int =&gt; Int = {</span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true"></a>    ((x: Any =&gt; (Int =&gt; Int)) =&gt; <span class="fu">x</span>(x))(</span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true"></a>      (self: Any) =&gt; <span class="fu">almostFactorial</span>(self.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](self))</span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true"></a>    )</span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true"></a>  }</span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true"></a></span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true"></a><span class="co">// Just renaming self , doesn't change the meaning of the program.</span></span>
+<span id="cb27-31"><a href="#cb27-31" aria-hidden="true"></a>  <span class="kw">def</span> factorialV7: Int =&gt; Int = {</span>
+<span id="cb27-32"><a href="#cb27-32" aria-hidden="true"></a>    ((x: Any =&gt; (Int =&gt; Int)) =&gt; <span class="fu">x</span>(x))(</span>
+<span id="cb27-33"><a href="#cb27-33" aria-hidden="true"></a>      (x: Any) =&gt; <span class="fu">almostFactorial</span>(x.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](x))</span>
+<span id="cb27-34"><a href="#cb27-34" aria-hidden="true"></a>    )</span>
+<span id="cb27-35"><a href="#cb27-35" aria-hidden="true"></a>  }</span></code></pre></div>
+<p>Our <code>factorialV7</code> is tied to <code>almostFactorial</code>. Let’s abstract it out.</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true"></a></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">makeRecursive</span>(f: (Int =&gt; Int) =&gt; (Int =&gt; Int)) = {</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true"></a>        ((x: Any =&gt; (Int =&gt; Int)) =&gt; <span class="fu">x</span>(x))(</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true"></a>      (x: Any) =&gt; <span class="fu">f</span>(x.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](x))</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true"></a>    )</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true"></a>  }</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true"></a></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true"></a><span class="kw">def</span> factorialV8 = <span class="fu">makeRecursive</span>(almostFactorial)</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true"></a><span class="co">// Works? stack overflow again. But we will fix it later. Hold tight.</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true"></a></span></code></pre></div>
+<p>Before we fix the stack overflow error, let’s simply try to prove that makeRecursive is our <code>y</code>. <code>makeRecursive</code> is devoid of free variables, but it is essentially equal to the <code>y</code> implemented way before. However let’s prove it.</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true"></a></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true"></a><span class="co">// makeRecursive is renamed to yCombinator0</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true"></a><span class="kw">def</span> <span class="fu">yCombinator0</span>(f: (Int =&gt; Int) =&gt; (Int =&gt; Int)) = {</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true"></a>        ((x: Any =&gt; (Int =&gt; Int)) =&gt; <span class="fu">x</span>(x))(</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true"></a>      (x: Any) =&gt; <span class="fu">f</span>(x.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](x))</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true"></a>    )</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true"></a>  }</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true"></a></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true"></a><span class="kw">def</span> factorialV9 = <span class="fu">y2</span>(almostFactorial)</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true"></a></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true"></a><span class="co">// A minor change. Here, its saying </span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true"></a><span class="co">// y f = (lambdaXfxx)((lambdaXfxx))</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true"></a><span class="co">// where lambdaXfxx =  (x: Any) =&gt; f(x.asInstanceOf[Any =&gt; (Int =&gt; Int)](x))</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true"></a><span class="kw">def</span> yCombinator1 = </span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true"></a>    (f: (Int =&gt; Int) =&gt; (Int =&gt; Int)) =&gt; {</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true"></a>       (</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true"></a>         (x: Any) =&gt; <span class="fu">f</span>(x.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](x))</span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true"></a>        )(</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true"></a>         (x: Any) =&gt; <span class="fu">f</span>(x.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](x))</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true"></a>        )</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true"></a>  }</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true"></a></span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true"></a> <span class="kw">def</span> yCombinator2 = </span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true"></a>    (f: (Int =&gt; Int) =&gt; (Int =&gt; Int)) =&gt; {</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true"></a>      <span class="kw">val</span> lambdaXFxx = ((x: Any) =&gt; <span class="fu">f</span>(x.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](x)))</span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true"></a>      <span class="fu">f</span>(<span class="fu">lambdaXFxx</span>(lambdaXFxx))</span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true"></a>  }</span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true"></a></span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true"></a></span></code></pre></div>
+<p>There lies the proof. Can you see that?</p>
+<p><code>yCombinator1</code> says the following:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true"></a>y f = (lambdaXfxx)((lambdaXfxx))</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true"></a></span></code></pre></div>
+<p><code>yCombinator2</code> says the following</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true"></a>y f = <span class="fu">f</span> ((lambdaXfxx)((lambdaXfxx)))</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true"></a><span class="co">// and that is:</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true"></a><span class="co">// Something that we already saw before</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true"></a>y f = <span class="fu">f</span> (y f) </span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true"></a></span></code></pre></div>
+<p>Hence <code>yCombinator2</code> is our real <code>y</code> combinator</p>
+<h2 id="remove-stack-overflow-from-y-combinator">Remove stack overflow from y combinator</h2>
+<p>May be we can apply the lambda technique we used before i.e,</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true"></a></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true"></a>{ <span class="kw">val</span> x: A =&gt; A = <span class="fu">f</span>(z) } is same as {<span class="kw">val</span> x : A =&gt; A = a =&gt; <span class="fu">f</span>(z)(a)}</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true"></a></span></code></pre></div>
+<p>All thats done here is, apply an extra lambbda, wherever possible.</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true"></a></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true"></a><span class="co">// Stack safe</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true"></a><span class="kw">def</span> yCombinator = </span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true"></a>    (f: (Int =&gt; Int) =&gt; (Int =&gt; Int)) =&gt; {</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true"></a>      <span class="kw">val</span> lambdaXFxx = ((x: Any) =&gt; <span class="fu">f</span>((y: Int) =&gt; x.<span class="fu">asInstanceOf</span>[Any =&gt; (Int =&gt; Int)](x)(y)))</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true"></a>      <span class="fu">f</span>(<span class="fu">lambdaXFxx</span>(lambdaXFxx))</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true"></a>  }</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true"></a></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true"></a><span class="kw">def</span> factorial = <span class="fu">yCombinator</span>(almostFactorial) <span class="co">// Works !!</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true"></a></span></code></pre></div>
+<h2 id="generalise-y-combinator">Generalise y combinator</h2>
+<div class="sourceCode" id="cb34"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true"></a></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true"></a> <span class="kw">def</span> y[A, B] = </span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true"></a>    (f: (A =&gt; B) =&gt; (A =&gt; B)) =&gt; {</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true"></a>      <span class="kw">val</span> lambdaXFxx = ((x: Any) =&gt; <span class="fu">f</span>((y: A) =&gt; x.<span class="fu">asInstanceOf</span>[Any =&gt; (A =&gt; B)](x)(y)))</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true"></a>      <span class="fu">f</span>(<span class="fu">lambdaXFxx</span>(lambdaXFxx))</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true"></a>  }</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true"></a></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true"></a><span class="co">// In scala3, you can also write something like this if you want.</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true"></a></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true"></a><span class="kw">def</span> yScala3[A, B] = </span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true"></a>    (f: (A =&gt; B) =&gt; (A =&gt; B)) =&gt; {</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true"></a>      <span class="kw">val</span> lambdaXFxx:[Z] =&gt; Z =&gt; (A =&gt; B) = ([Z] =&gt; (z: Z) =&gt; <span class="fu">f</span>((y: A) =&gt; z.<span class="fu">asInstanceOf</span>[Z =&gt; (A =&gt; B)](z)(y)))</span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true"></a>      <span class="fu">f</span>(<span class="fu">lambdaXFxx</span>(lambdaXFxx))</span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true"></a>  }</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true"></a></span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true"></a></span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true"></a><span class="kw">def</span> factorial = <span class="fu">y</span>(almostFactorial)</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true"></a></span></code></pre></div>
+<p>Ah! That was a long loop. I know, but not only you learned fix-points, you learned its implementation in scala through <code>y f = f (y f)</code> and proved that there exists a combinator, that is devoid of free variables that can achieve the same result in both strict and lazy languages.</p>
+<p>Well done, and now if you are interested to read explanations in <code>Lisp</code> or <code>Scheme</code> language, go on and read this: https://mvanier.livejournal.com/2897.html</p>
     </section>
 </article>
 
