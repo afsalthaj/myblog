@@ -49,8 +49,8 @@
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>  <span class="kw">val</span> factorial: Int =&gt; Int =</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    n =&gt; <span class="kw">if</span> (n == <span class="dv">0</span>) <span class="dv">1</span> <span class="kw">else</span> n * <span class="fu">factorial</span>(n - <span class="dv">1</span>)</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a></span></code></pre></div>
-<p>Sure, that’s easy. But let’s say someone asked you to implement the same <code>factorial</code> such that the name of the function shouldn’t come in the body. Before you ask <code>why</code>, here is a question for you. Why are we implementing <code>sort</code> in an interview while most of us (that I have met) never had to implement a sort ever in our professional career?</p>
-<p>Consider it as a challenge and move on with the rest of the blog.</p>
+<p>Sure, that’s easy. But let’s say someone asked you to implement the same <code>factorial</code> such that the name of the function shouldn’t come in the body. Why? I think, answering this <code>Why</code> leads to applications that use <code>Fix Points</code>.</p>
+<p>So, I request you to consider it as a challenge and a first step towards the understanding of <code>Fix</code> and <code>Recursion Schemes</code> and its wonderful application level usages in various other talks/blogs.</p>
 <p>Answering the question, well may be I can do</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">factorial</span>(f: Int =&gt; Int): Int =&gt; Int =</span>

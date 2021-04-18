@@ -47,10 +47,10 @@ A factorial of a number 3 is 3 * 2 * 1. It's implementation is as follows:
 ```
 
 Sure, that's easy. But let's say someone asked you to implement the same `factorial` such that the name of the function
-shouldn't come in the body. Before you ask `why`, here is a question for you. Why are we implementing `sort` in an interview
-while most of us (that I have met) never had to implement a sort ever in our professional career?
+shouldn't come in the body. Why? I think, answering this `Why` leads to applications that use `Fix Points`.
 
-Consider it as a challenge and move on with the rest of the blog.
+So, I request you to consider it as a challenge and a first step towards the understanding of `Fix` and `Recursion Schemes` and its wonderful application level usages
+in various other talks/blogs.
 
 Answering the question, well may be I can do
 
