@@ -43,6 +43,7 @@ A factorial of a number 3 is 3 * 2 * 1. It's implementation is as follows:
   val factorial: Int => Int =
     n => if (n == 0) 1 else n * factorial(n - 1)
 
+
 ```
 
 Sure, that's easy. But let's say someone asked you to implement the same `factorial` such that the name of the function
@@ -58,6 +59,7 @@ Answering the question, well may be I can do
   def factorial(f: Int => Int): Int => Int =
     n => if (n == 0) 1 else n * f(n - 1)
 
+
 ```
 
 Ah, sure, but that's not a factorial.
@@ -68,6 +70,7 @@ Ofcourse, that's not a factorial, so let's call it as `almostFactorial`.
 
    def almostFactorial(f: Int => Int): Int => Int =
      n => if (n == 0) 1 else n * f(n - 1)
+
 
 ```
 
@@ -81,6 +84,7 @@ i.e,
   val factorial: Int => Int =
     almostFactorial(almostFactorial(almostFactorial(.....)))
 
+
 ```
 
 Well if you try to implement it, you will be writing it forever. Anyone who is not convinced yet, please try it out.
@@ -92,12 +96,14 @@ Fine, let's take a different approach then.
  val factorial0: Int => Int =
    almostFactorial(identity)
 
+
 ```
 
 ```scala
 
   factorial0(0) // returns 1 ==> works
   factorial0(1) // doesn't work, coz identity(n - 1) == identity(1 - 1) == identity(0) == 0
+
 
 ```
 
@@ -133,6 +139,7 @@ Infact `factorialInfinitiy` is our real `factorial` implementation.
 ```scala
 
  factorial = fix-point-of almostFactorial
+
 
 ```
 
@@ -286,8 +293,9 @@ def y[A, B] = (f: (A => B) => (A => B)) => f(y(f))
 
 ```
 
-Well let's revisit our factorial, and what really went wrong. 
-Let's revisit abstracting out recursion, and call our function `partFactorial`.
+Well let's revisit our factorial, and try abstracting out recursion again, 
+and call our function `partFactorial`. You will see why we are not calling it as
+`almostFactorial` later.
 
 ```scala
   def partFactorial(f: Int => Int): Int => Int = n => if (n == 0) 1 else n * f(n - 1)
@@ -404,6 +412,8 @@ Let's get rid of partFactorialV3(partFactoriv3 _), let's merge all of these into
     )
   }
 
+
+
 ```
 
 Our `factorialV7` is tied to `almostFactorial`. Let's abstract it out.
@@ -419,6 +429,7 @@ def makeRecursive(f: (Int => Int) => (Int => Int)) = {
 
 def factorialV8 = makeRecursive(almostFactorial)
 // Works? stack overflow again. But we will fix it later. Hold tight.
+
 
 
 ```
