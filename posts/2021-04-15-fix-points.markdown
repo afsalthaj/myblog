@@ -166,20 +166,16 @@ So, let's implement `y` such that it can take a function and returns its fix-poi
 ```scala
 
 
- val factorial = almostFactorial(factorial)
+// val factorial = almostFactorial(factorial)
 
- implies,
+// implies the following:
 
-// fix-point-fn = almostFactorial fix-point-fn
-
-// If we are building a function called fix-point-fn that takes `fn` as an argument then,
+// If we are building a function called toFixPoint that takes `fn` as an argument then,
 // that means the following
 
-// fix-point-fn  fn = fn fix-point-fn
-// Rename fix-point-fn as Y, we will see later why
-// Y             fn = fn (Y fn)
-// or, def Y (f: Fn) = f(Y(f))
-
+// toFixPoint (fn: Fn) = fn(toFixPoint(fn))
+// Rename toFixPoint as Y, we will see later why
+// Y(fn: Fn) = fn (Y(fn))
 
 ```
 
@@ -255,7 +251,8 @@ The following will compile.
 ```
 
 However, it's sort of fairly hacky to make our latest `Y` stacksafe using our lambda technique.
-Try yourself if you are having a doubt. For this reaso, may be we can keep the same original `Y` as it is but with another minor change.
+Try yourself if you are having a doubt. 
+This is sort of solveable though. However, for the time being, we can keep the same original `Y` as it is but with only a minor change.
 We can make the return type a `B` instead of `A` to allow more flexiblity.
 
 In the case of `factorial` which is `Int => Int`, `B` is `A` itself.
@@ -370,25 +367,30 @@ def factorialV3 = partFactorialv3(partFactorialv3 _)
 ```
 
 Sure, we kind of extracted/reused almostFactorial in our latest implementations. 
-You might be wondering why we are doing this. But hold on, keep your patience and read on.
+You might be wondering why we are we doing this long loop of refactoring. 
+I agree, but I request you to keep your patience and read on.
 
-Let's get rid of partFactorialV3(partFactoriv3 _), let's merge all of these into factorial
+All our implementations of factorial is `partFactorial*(partFactorial* _)`.
+Let's get rid of it and try having only one single function called `factorial`. That means
+`partFactorial` implementation will become part of the `factorial` itself.
 
 
 ```scala
 
+ // This was our partFactorial
  def partFactorialv4: Any => (Int => Int) = {
     (self: Any) => almostFactorial(self.asInstanceOf[Any => (Int => Int)](self)) // almostFactorial self self
   }
 
+ // Moved inside our factorial implementation now.
  def factorialV4: Int => Int = {
-    val partFactorial4 = 
+    val partFactorial = 
        (self: Any) => almostFactorial(self.asInstanceOf[Any => (Int => Int)](self)) // almostFactorial self self
 
-    partFactorial4(partFactorial4)   
+    partFactorial(partFactorial)   
   }  
 
-// Well, lets rename this partFactorial stuff
+// Well, lets rename this partFactorial to x
  def factorialV5: Int => Int = {
     val x = 
        (self: Any) => almostFactorial(self.asInstanceOf[Any => (Int => Int)](self)) // almostFactorial self self
@@ -396,16 +398,16 @@ Let's get rid of partFactorialV3(partFactoriv3 _), let's merge all of these into
     x(x)   
   }
 
-// The trick {val x: A = a; x(x) } === ((x: A) => x(x))(a)
-// Let's rewrite the above code to something like below.
-
+// Let's apply our trick: Replace { val x: A = a; x(x) } with { ((x: A) => x(x))(a) }
  def factorialV6: Int => Int = {
     ((x: Any => (Int => Int)) => x(x))(
       (self: Any) => almostFactorial(self.asInstanceOf[Any => (Int => Int)](self))
     )
   }
 
-// Just renaming self , doesn't change the meaning of the program.
+// Just renaming self to x, and obviously it doesn't change the meaning of the program.
+// At this stage, I really recommend you try this code compile in your IDE
+// instead of reasoning it without a code, because languages are always complex in some way.
   def factorialV7: Int => Int = {
     ((x: Any => (Int => Int)) => x(x))(
       (x: Any) => almostFactorial(x.asInstanceOf[Any => (Int => Int)](x))
@@ -416,10 +418,12 @@ Let's get rid of partFactorialV3(partFactoriv3 _), let's merge all of these into
 
 ```
 
-Our `factorialV7` is tied to `almostFactorial`. Let's abstract it out.
+As functional programmers, we cannot allow `almostFactorial` to be part of the implementation.
+Let's abstract that out.
 
 ```scala
 
+// It's no more factorial because we extracted out almostFactorial as `f`.
 def makeRecursive(f: (Int => Int) => (Int => Int)) = {
         ((x: Any => (Int => Int)) => x(x))(
       (x: Any) => f(x.asInstanceOf[Any => (Int => Int)](x))
@@ -435,22 +439,24 @@ def factorialV8 = makeRecursive(almostFactorial)
 ```
 
 Before we fix the stack overflow error, let's simply try to prove that 
-makeRecursive is our `y`. `makeRecursive` is devoid of free variables, but it is essentially
-equal to the `y` implemented way before. However let's prove it.
+makeRecursive is our `y`(implemented above). 
+
+And why do we need to prove ? `makeRecursive` is our real `y` that is devoid of free variables.
+In other words, we are going to prove that there is a `combinator` version of `def y(f) = f(y(f))`
 
 
 ```scala
 
 // makeRecursive is renamed to yCombinator0
 def yCombinator0(f: (Int => Int) => (Int => Int)) = {
-        ((x: Any => (Int => Int)) => x(x))(
-      (x: Any) => f(x.asInstanceOf[Any => (Int => Int)](x))
-    )
-  }
+  ((x: Any => (Int => Int)) => x(x))(
+    (x: Any) => f(x.asInstanceOf[Any => (Int => Int)](x))
+  )
+}
 
 def factorialV9 = y2(almostFactorial)
 
-// A minor change. Here, its saying 
+// Below code summarises the following:
 // y f = (lambdaXfxx)((lambdaXfxx))
 // where lambdaXfxx =  (x: Any) => f(x.asInstanceOf[Any => (Int => Int)](x))
 def yCombinator1 = 
@@ -462,6 +468,7 @@ def yCombinator1 =
         )
   }
 
+ // The final refactoring
  def yCombinator2 = 
     (f: (Int => Int) => (Int => Int)) => {
       val lambdaXFxx = ((x: Any) => f(x.asInstanceOf[Any => (Int => Int)](x)))
@@ -474,27 +481,24 @@ def yCombinator1 =
 
 There lies the proof. Can you see that?
 
-`yCombinator1` says the following:
-
 ```scala
+
+// `yCombinator1` says the following:
+
 y f = (lambdaXfxx)((lambdaXfxx))
 
 
-```
+// `yCombinator2` says the following
 
-`yCombinator2` says the following
-
-```scala
 y f = f ((lambdaXfxx)((lambdaXfxx)))
-// and that is:
+y f = f (y f)
 
-// Something that we already saw before
-y f = f (y f) 
+// Hence, we proved our `def yCombinator2(f) = <expr>` is same as `def y(f) = f(y(f))`
 
 
 ```
 
-Hence `yCombinator2` is our real `y` combinator
+In summary, `yCombinator2` is our real `y` combinator
 
 ## Remove stack overflow from y combinator
 
@@ -529,17 +533,18 @@ def factorial = yCombinator(almostFactorial) // Works !!
 ```scala
 
  def y[A, B] = 
-    (f: (A => B) => (A => B)) => {
-      val lambdaXFxx = ((x: Any) => f((y: A) => x.asInstanceOf[Any => (A => B)](x)(y)))
-      f(lambdaXFxx(lambdaXFxx))
+  (f: (A => B) => (A => B)) => {
+    val lambdaXFxx = ((x: Any) => f((y: A) => x.asInstanceOf[Any => (A => B)](x)(y)))
+    f(lambdaXFxx(lambdaXFxx))
   }
 
-// In scala3, you can also write something like this if you want.
+// In scala3, you can also write something like this if you want. 
+// It removes `Any`, but it doesn't really matter :D
 
 def yScala3[A, B] = 
-    (f: (A => B) => (A => B)) => {
-      val lambdaXFxx:[Z] => Z => (A => B) = ([Z] => (z: Z) => f((y: A) => z.asInstanceOf[Z => (A => B)](z)(y)))
-      f(lambdaXFxx(lambdaXFxx))
+  (f: (A => B) => (A => B)) => {
+    val lambdaXFxx:[Z] => Z => (A => B) = ([Z] => (z: Z) => f((y: A) => z.asInstanceOf[Z => (A => B)](z)(y)))
+    f(lambdaXFxx(lambdaXFxx))
   }
 
 
@@ -552,6 +557,6 @@ Ah! That was a long loop. I know, but not only you learned fix-points, you learn
 implementation in scala through `y f = f (y f)` and proved that there exists a combinator, that
 is devoid of free variables that can achieve the same result in both strict and lazy languages.
 
-Well done, and now if you are interested to read explanations in `Lisp` or `Scheme` language,
+Thanks, and Well done for reading such a long blog. 
+If you are interested to read explanations in `Lisp` or `Scheme` language,
 go on and read this: https://mvanier.livejournal.com/2897.html
-
