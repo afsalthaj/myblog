@@ -283,7 +283,7 @@
 <span id="cb29-6"><a href="#cb29-6" aria-hidden="true"></a>  )</span>
 <span id="cb29-7"><a href="#cb29-7" aria-hidden="true"></a>}</span>
 <span id="cb29-8"><a href="#cb29-8" aria-hidden="true"></a></span>
-<span id="cb29-9"><a href="#cb29-9" aria-hidden="true"></a><span class="kw">def</span> factorialV9 = <span class="fu">y2</span>(almostFactorial)</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true"></a><span class="kw">def</span> factorialV9 = <span class="fu">yCombinator0</span>(almostFactorial)</span>
 <span id="cb29-10"><a href="#cb29-10" aria-hidden="true"></a></span>
 <span id="cb29-11"><a href="#cb29-11" aria-hidden="true"></a><span class="co">// Below code summarises the following:</span></span>
 <span id="cb29-12"><a href="#cb29-12" aria-hidden="true"></a><span class="co">// y f = (lambdaXfxx)((lambdaXfxx))</span></span>
@@ -347,15 +347,30 @@
 <span id="cb33-8"><a href="#cb33-8" aria-hidden="true"></a><span class="co">// In scala3, you can also write something like this if you want. </span></span>
 <span id="cb33-9"><a href="#cb33-9" aria-hidden="true"></a><span class="co">// It removes `Any`, but it doesn't really matter :D</span></span>
 <span id="cb33-10"><a href="#cb33-10" aria-hidden="true"></a></span>
-<span id="cb33-11"><a href="#cb33-11" aria-hidden="true"></a><span class="kw">def</span> yScala3[A, B] = </span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true"></a><span class="kw">def</span> yScala3_v0[A, B] = </span>
 <span id="cb33-12"><a href="#cb33-12" aria-hidden="true"></a>  (f: (A =&gt; B) =&gt; (A =&gt; B)) =&gt; {</span>
 <span id="cb33-13"><a href="#cb33-13" aria-hidden="true"></a>    <span class="kw">val</span> lambdaXFxx:[Z] =&gt; Z =&gt; (A =&gt; B) = ([Z] =&gt; (z: Z) =&gt; <span class="fu">f</span>((y: A) =&gt; z.<span class="fu">asInstanceOf</span>[Z =&gt; (A =&gt; B)](z)(y)))</span>
 <span id="cb33-14"><a href="#cb33-14" aria-hidden="true"></a>    <span class="fu">f</span>(<span class="fu">lambdaXFxx</span>(lambdaXFxx))</span>
 <span id="cb33-15"><a href="#cb33-15" aria-hidden="true"></a>  }</span>
 <span id="cb33-16"><a href="#cb33-16" aria-hidden="true"></a></span>
-<span id="cb33-17"><a href="#cb33-17" aria-hidden="true"></a></span>
-<span id="cb33-18"><a href="#cb33-18" aria-hidden="true"></a><span class="kw">def</span> factorial = <span class="fu">y</span>(almostFactorial)</span>
-<span id="cb33-19"><a href="#cb33-19" aria-hidden="true"></a></span></code></pre></div>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true"></a><span class="co">// Well, why do we need an asInstanceOf. If you think about it, the above code is equivalent to</span></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true"></a></span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true"></a><span class="kw">def</span> yScala3[A, B] = </span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true"></a>  (f: (A =&gt; B) =&gt; (A =&gt; B)) =&gt; {</span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true"></a>    <span class="kw">lazy</span> <span class="kw">val</span> lambda:[Z] =&gt; Z =&gt; (A =&gt; B) = ([Z] =&gt; (z: Z) =&gt; <span class="fu">f</span>((y: A) =&gt; <span class="fu">lambda</span>(z)(y)))</span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true"></a>    <span class="fu">f</span>(<span class="fu">lambda</span>(lambda))</span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true"></a>  }</span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true"></a></span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true"></a><span class="co">// I think I liked that one</span></span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true"></a><span class="kw">def</span> y[A, B] = </span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true"></a>  (f: (A =&gt; B) =&gt; (A =&gt; B)) =&gt; {</span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true"></a>    <span class="kw">lazy</span> <span class="kw">val</span> lambda:[Z] =&gt; Z =&gt; (A =&gt; B) = </span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true"></a>      ([Z] =&gt; (z: Z) =&gt; <span class="fu">f</span>((y: A) =&gt; <span class="fu">lambda</span>(z)(y)))</span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true"></a>    <span class="fu">f</span>(<span class="fu">lambda</span>(lambda))</span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true"></a>  }</span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true"></a>  </span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true"></a><span class="kw">def</span> factorial = <span class="fu">y</span>(almostFactorial)</span>
+<span id="cb33-34"><a href="#cb33-34" aria-hidden="true"></a></span></code></pre></div>
 <p>Ah! That was a long loop. I know, but not only you learned fix-points, you learned its implementation in scala through <code>y f = f (y f)</code> and proved that there exists a combinator, that is devoid of free variables that can achieve the same result in both strict and lazy languages.</p>
 <p>Thanks, and Well done for reading such a long blog. If you are interested to read explanations in <code>Lisp</code> or <code>Scheme</code> language, go on and read this: https://mvanier.livejournal.com/2897.html</p>
     </section>
