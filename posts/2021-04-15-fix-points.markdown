@@ -454,7 +454,7 @@ def yCombinator0(f: (Int => Int) => (Int => Int)) = {
   )
 }
 
-def factorialV9 = y2(almostFactorial)
+def factorialV9 = yCombinator0(almostFactorial)
 
 // Below code summarises the following:
 // y f = (lambdaXfxx)((lambdaXfxx))
@@ -541,13 +541,28 @@ def factorial = yCombinator(almostFactorial) // Works !!
 // In scala3, you can also write something like this if you want. 
 // It removes `Any`, but it doesn't really matter :D
 
-def yScala3[A, B] = 
+def yScala3_v0[A, B] = 
   (f: (A => B) => (A => B)) => {
     val lambdaXFxx:[Z] => Z => (A => B) = ([Z] => (z: Z) => f((y: A) => z.asInstanceOf[Z => (A => B)](z)(y)))
     f(lambdaXFxx(lambdaXFxx))
   }
 
+// Well, why do we need an asInstanceOf. If you think about it, the above code is equivalent to
 
+def yScala3[A, B] = 
+  (f: (A => B) => (A => B)) => {
+    lazy val lambda:[Z] => Z => (A => B) = ([Z] => (z: Z) => f((y: A) => lambda(z)(y)))
+    f(lambda(lambda))
+  }
+
+// I think I liked that one
+def y[A, B] = 
+  (f: (A => B) => (A => B)) => {
+    lazy val lambda:[Z] => Z => (A => B) = 
+      ([Z] => (z: Z) => f((y: A) => lambda(z)(y)))
+    f(lambda(lambda))
+  }
+  
 def factorial = y(almostFactorial)
 
 
