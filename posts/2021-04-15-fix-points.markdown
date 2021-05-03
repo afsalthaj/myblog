@@ -454,7 +454,7 @@ def yCombinator0(f: (Int => Int) => (Int => Int)) = {
   )
 }
 
-def factorialV9 = y2(almostFactorial)
+def factorialV9 = yCombinator0(almostFactorial)
 
 // Below code summarises the following:
 // y f = (lambdaXfxx)((lambdaXfxx))
