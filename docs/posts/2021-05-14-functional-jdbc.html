@@ -78,10 +78,11 @@
 <p>Well, I lied, there is no such function called <code>statement</code> in <code>JdbcConnection</code>. So let’s add that.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> JdbcConnection[F[_]](resource: Resource[F, Connection]) {</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    <span class="kw">new</span> <span class="fu">SqlClient</span>(</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>      resource.<span class="fu">flatMap</span>(connection =&gt; Resource.<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span>(connection.<span class="fu">createStatement</span>())))</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>    ) {}</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>  }</span></code></pre></div>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    <span class="kw">def</span> <span class="fu">statement</span>(<span class="kw">implicit</span> F: Sync[F]): SqlClient[F] =</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>      <span class="kw">new</span> <span class="fu">SqlClient</span>(</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>        resource.<span class="fu">flatMap</span>(connection =&gt; Resource.<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span>(connection.<span class="fu">createStatement</span>())))</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>      ) {}</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a>  }</span></code></pre></div>
 <p>Well, this code will not work unless we keep this code inside the companion object of <code>SqlClient</code>. If this code needs to be in companion objecct, then the entire <code>JdbcConnection</code> should be with in the companion objet of <code>SqlClient</code>. And that, really, makes sense!.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a> <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> SqlClient[F[_]](resource: Resource[F, Statement])</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>

@@ -82,9 +82,10 @@ Well, I lied, there is no such function called `statement` in `JdbcConnection`. 
 ```scala
 
   abstract sealed case class JdbcConnection[F[_]](resource: Resource[F, Connection]) {
-    new SqlClient(
-      resource.flatMap(connection => Resource.fromAutoCloseable(Sync[F].delay(connection.createStatement())))
-    ) {}
+    def statement(implicit F: Sync[F]): SqlClient[F] =
+      new SqlClient(
+        resource.flatMap(connection => Resource.fromAutoCloseable(Sync[F].delay(connection.createStatement())))
+      ) {}
   }
 
 ```
