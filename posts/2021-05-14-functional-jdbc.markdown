@@ -400,7 +400,7 @@ abstract sealed case class SqlClient[F[_]](resource: Resource[F, Statement]) {
 
   /**
    * {{{
-   *   SqlClient.mk(connectionInfo).select("select * from tablename")
+   *   SqlClient.mk(connectionInfo).selectNonEmpty("select * from tablename")
    * }}}
    *
    * returns a non-empty list of rows.
