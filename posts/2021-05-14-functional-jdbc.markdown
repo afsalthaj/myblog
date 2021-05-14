@@ -14,7 +14,7 @@ such that the abstraction will handle (basic) resource handling + querying.
 
 So, this below blog/code is just that abstraction. Nothing more, and nothing less.
 
-PS: If you are on a full fledged webservice with lots of databse operations, Doobie is a great choice.
+PS: If you are on a significantly large webservice with lots of database operations, Doobie is a great choice.
 
  Let's define a smart constructor for `Jdbc` `Connection`
 
