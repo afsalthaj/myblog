@@ -159,7 +159,7 @@ abstract sealed case class SqlClient[F[_]](resource: Resource[F, Statement]) {
 
 ```
 
-Well we haven't got everything in place. We just tried to implement `select`, and we know the return type `F[List[Row]]`.
+Well we haven't got everything in place. We just tried to implement `select`, and we know the return type is `F[List[Row]]`.
 `Row` is as simple as `Map[String, AnyRef]`. Example: `Map("age" -> 20, "country`" : "usa")`.
 
 Sure, how do we convert `java.sql.ResultSet` to `List[Row]` ?
@@ -167,17 +167,20 @@ Well, the best answer is, it should be from `java.sql.ResultSet` to `fs2.Stream[
 There can be numerous number of rows and it cannot be collected to memory. Hence it's  a stream.
 It's a stream under an effect `F` representing `IO`.
 
-In functional programming terms, it is a corecursion, that recognise it is an `unfold` operation
-where we build up the structure from an intitial resultSet state (i.e, the famous resultSet.next()). 
+In functional programming terms, it is a corecursion, which is recognising the fact it is really an `unfold` operation,
+where we build up the structure from an intitial resultSet state (i.e, the famous resultSet.next()) 
+until the state transition stops (Note: In certain cases, the transition never stops leading to infinite data!). 
 
 This is probably the time, developers who are not familiar with Functional Programming has that moment of table-flip. 
 However, I still request you to give me a bit more time before you flip.
 
-Oversimplifying a few things here, there are two main types of recursions. Unfolding, and folding.
+Oversimplifying a few things here.
+
+There are two main types of recursion. Unfolding, and folding.
 Let's call it as "recursion" and "corecursion" respectively.
 
-A corecursion is still a recursion, but it is building the data - streams, 
-and a recursion will terminate the recursion to a single point - Example: Sum of a list of Integers.
+A corecursion is still a recursion, but it is building the data. Example: Stream.
+On the other hand, a non-corecursion (recursion) will terminate the recursion to a single point. Example: Sum of a list of Int.
 
 Thats a bit wordy. Anyway, let's have our own `JdbcResultSet` similar to our above patterns.
 Who wouldn't want a "consistency" in the code base!
