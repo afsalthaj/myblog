@@ -34,7 +34,7 @@
 <p>Jdbc is just tough (personally), and all that we need is just querying something from database returning something which can be used somewhere else. Not a great business story, but the core of most of the business stories.</p>
 <p>If you repeat the code of using raw jdbc functionalities multiple times (lots and lots of patterns of usages), probably you may abstract it in your code such that the abstraction will handle (basic) resource handling + querying.</p>
 <p>So, this below blog/code is just that abstraction. Nothing more, and nothing less.</p>
-<p>PS: If you are on a full fledged webservice with lots of databse operations, Doobie is a great choice.</p>
+<p>PS: If you are on a significantly large webservice with lots of database operations, Doobie is a great choice.</p>
 <p>Let’s define a smart constructor for <code>Jdbc</code> <code>Connection</code></p>
 <h3 id="jdbcconnection">JdbcConnection</h3>
 <div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a></span>
