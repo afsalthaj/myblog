@@ -141,9 +141,9 @@
 <p>Sure, how do we convert <code>java.sql.ResultSet</code> to <code>List[Row]</code> ? Well, the best answer is, it should be from <code>java.sql.ResultSet</code> to <code>fs2.Stream[F, Row]</code>. Why? There can be numerous number of rows and it cannot be collected to memory. Hence it’s a stream. It’s a stream under an effect <code>F</code> representing <code>IO</code>.</p>
 <p>In functional programming terms, it is a corecursion, that recognise it is an <code>unfold</code> operation where we build up the structure from an intitial resultSet state (i.e, the famous resultSet.next()).</p>
 <p>This is probably the time, developers who are not familiar with Functional Programming has that moment of table-flip. However, I still request you to give me a bit more time before you flip.</p>
-<p>Oversimplifying a few things here, Ther are two main types of recursions out there. Unfolding, and then folding. Let’s call it as “recursion” and “corecursion” respectively.</p>
+<p>Oversimplifying a few things here, there are two main types of recursions. Unfolding, and folding. Let’s call it as “recursion” and “corecursion” respectively.</p>
 <p>A corecursion is still a recursion, but it is building the data - streams, and a recursion will terminate the recursion to a single point - Example: Sum of a list of Integers.</p>
-<p>Thats a bit wordy. Anyway, let’s we have a similar pattern to follow for <code>ResultSet</code>. Who wouldn’t want “consistency” in the code base.</p>
+<p>Thats a bit wordy. Anyway, let’s have our own <code>JdbcResultSet</code> similar to our above patterns. Who wouldn’t want a “consistency” in the code base!</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">JdbcResultSet</span>(resultSet: ResultSet)</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  <span class="kw">object</span> ResultSet {</span>
