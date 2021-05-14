@@ -83,7 +83,7 @@
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>        resource.<span class="fu">flatMap</span>(connection =&gt; Resource.<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span>(connection.<span class="fu">createStatement</span>())))</span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>      ) {}</span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a>  }</span></code></pre></div>
-<p>Well, this code will not work unless we keep this code inside the companion object of <code>SqlClient</code>. If this code needs to be in companion objecct, then the entire <code>JdbcConnection</code> should be with in the companion objet of <code>SqlClient</code>. And that, really, makes sense!.</p>
+<p>Well, this code will not work unless we keep this code inside the companion object of <code>SqlClient</code>. If this code needs to be in companion objecct, then the entire <code>JdbcConnection</code> should be with in the companion object of <code>SqlClient</code>. And that, really, makes sense!.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a> <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> SqlClient[F[_]](resource: Resource[F, Statement])</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a> <span class="kw">object</span> SqlClient {</span>
@@ -140,12 +140,12 @@
 <span id="cb5-21"><a href="#cb5-21" aria-hidden="true"></a> }</span></code></pre></div>
 <p>Well we haven’t got everything in place. We just tried to implement <code>select</code>, and we know the return type is <code>F[List[Row]]</code>. <code>Row</code> is as simple as <code>Map[String, AnyRef]</code>. Example: <code>Map("age" -&gt; 20, "country</code>" : “usa”)`.</p>
 <p>Sure, how do we convert <code>java.sql.ResultSet</code> to <code>List[Row]</code> ? Well, the best answer is, it should be from <code>java.sql.ResultSet</code> to <code>fs2.Stream[F, Row]</code>. Why? There can be numerous number of rows and it cannot be collected to memory. Hence it’s a stream. It’s a stream under an effect <code>F</code> representing <code>IO</code>.</p>
-<p>In functional programming terms, it is a corecursion, which is recognising the fact it is really an <code>unfold</code> operation, where we build up the structure from an intitial resultSet state (i.e, the famous resultSet.next()) until the state transition stops (Note: In certain cases, the transition never stops leading to infinite data!).</p>
+<p>In functional programming terms, it is a co-recursion, which is recognising the fact that it is really an <code>unfold</code> operation, where we build up the structure from an intitial ResultSet state (i.e, the famous resultSet.next()) until the state transition stops. Note: In certain cases, the transition never stops leading to infinite data!</p>
 <p>This is probably the time, developers who are not familiar with Functional Programming has that moment of table-flip. However, I still request you to give me a bit more time before you flip.</p>
 <p>Oversimplifying a few things here.</p>
-<p>There are two main types of recursion. Unfolding, and folding. Let’s call it as “recursion” and “corecursion” respectively.</p>
-<p>A corecursion is still a recursion, but it is building the data. Example: Stream. On the other hand, a non-corecursion (recursion) will terminate the recursion to a single point. Example: Sum of a list of Int.</p>
-<p>Thats a bit wordy. Anyway, let’s have our own <code>JdbcResultSet</code> similar to our above patterns. Who wouldn’t want a “consistency” in the code base!</p>
+<p>There are two main types of recursion. Unfolding, and folding. Let’s call it as “co-recursion” and “recursion” respectively.</p>
+<p>A corecursion is still a recursion, but it is building the data. Example: Stream. On the other hand, a non-co-recursion (recursion) will terminate the data to a single point. Example: Sum of a list of Int.</p>
+<p>That’s a bit wordy. Anyway, let’s have our own <code>JdbcResultSet</code> similar to our above patterns. Who wouldn’t want a “consistency” in the code base!</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">JdbcResultSet</span>(resultSet: ResultSet)</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  <span class="kw">object</span> ResultSet {</span>
