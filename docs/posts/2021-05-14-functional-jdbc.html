@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Afsal's Blog - Functional JDBC</title>
+    <link rel="stylesheet" href="../css/default.css" />
+</head>
+
+<body>
+    <header>
+        <div class="logo">
+            <a href="../">Afsal's Blog</a>
+        </div>
+        <nav>
+            <a href="../">Home</a>
+            <a href="../about.html">About</a>
+            <a href="../contact.html">Contact</a>
+            <a href="../archive.html">Archive</a>
+        </nav>
+    </header>
+
+    <main role="main">
+        <h1>Functional JDBC</h1>
+        <article>
+    <section class="header">
+        Posted on May 14, 2021
+        
+    </section>
+    <section>
+        <h2 id="everything-with-jdbc-is-difficult">Everything with JDBC is difficult</h2>
+<p>Jdbc is just tough (personally), and all that we need is just querying something from database returning something which can be used somewhere else. Not a great business story, but the core of most of the business stories.</p>
+<p>If you repeat the code of using raw jdbc functionalities multiple times (lots and lots of patterns of usages), probably you may abstract it in your code such that the abstraction will handle (basic) resource handling + querying.</p>
+<p>So, this below blog/code is just that abstraction. Nothing more, and nothing less.</p>
+<p>PS: If you are on a full fledged webservice with lots of databse operations, Doobie is a great choice.</p>
+<p>Let’s define a smart constructor for <code>Jdbc</code> <code>Connection</code></p>
+<h3 id="jdbcconnection">JdbcConnection</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>  <span class="kw">import</span> cats.<span class="fu">effect</span>.<span class="fu">Resource</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>  <span class="kw">import</span> cats.<span class="fu">effect</span>.<span class="fu">Sync</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>  <span class="kw">import</span> java.<span class="fu">sql</span>.<span class="fu">Connection</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> JdbcConnection[F[_]](resource: Resource[F, Connection])</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a>  <span class="kw">object</span> JdbcConnection {</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a>    <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> <span class="fu">ConnectionInfo</span>(</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true"></a>      username: String,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true"></a>      password: String,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true"></a>      url: String,</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true"></a>      driverName: DownstreamSystem.<span class="fu">Jdbc</span>.<span class="fu">EngineType</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true"></a>    )</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true"></a>    <span class="kw">def</span> mk[F[_]: Sync](connectionInfo: ConnectionInfo): JdbcConnection[F] =</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true"></a>      <span class="kw">new</span> <span class="fu">JdbcConnection</span>(</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true"></a>        Resource</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true"></a>          .<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span> {</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true"></a>            Class.<span class="fu">forName</span>(connectionInfo.<span class="fu">driverName</span>.<span class="fu">name</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true"></a>            DriverManager.<span class="fu">getConnection</span>(connectionInfo.<span class="fu">url</span>, connectionInfo.<span class="fu">username</span>, connectionInfo.<span class="fu">password</span>)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true"></a>          })</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true"></a>      ) {}</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true"></a>  }</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true"></a></span></code></pre></div>
+<p>The only way to construct <code>JdbcConnection</code> is <code>JdbcConnection.mk[IO]</code>, where <code>F</code> is substitued with <code>cats.effect.IO</code> as an example. If you are not used to <code>F</code>, just consider that as “something” that represents a real <code>IO</code> operation. We inject some power to <code>F</code> using typeclass constraint <code>F[_] : Sync</code>. Forget about it, if you are not so used to it.</p>
+<p>Before we discuss how to use <code>JdbcConnection</code>, keep a note that, you are already in some <code>Resource</code> context. In simple terms, anything that you do here after with <code>JdbcConnection</code> will be followed by closing the connection, guaranteed!</p>
+<p>But before we start using the above abstraction, we need one more thing in place - <code>java.sql.Statement</code>, which can be retrieved from <code>java.sql.Connection</code>, which is then used to query the database. i.e, <code>statement.execute(...)</code></p>
+<p>So, simple thinking leads us to follow just the same pattern as above for <code>java.sql.Statement</code>.</p>
+<h3 id="jdbcstatement">JdbcStatement</h3>
+<p>Well, it seems <code>Statement</code> is all that we need for “most” of the operations. It seems this is our <code>Client</code>. Let’s name it as <code>SqlClient</code></p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> SqlClient[F[_]](resource: Resource[F, Statement])</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a><span class="kw">object</span> SqlClient {</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>  <span class="kw">def</span> mk[F[_]](connectionInfo: JdbcConnection.<span class="fu">ConnectionInfo</span>)(<span class="kw">implicit</span> F: Sync[F]): SqlClient[F] =</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a>    JdbcConnection.<span class="fu">mk</span>(connectionInfo).<span class="fu">statement</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a>}</span></code></pre></div>
+<p>Well, I lied, there is no such function called <code>statement</code> in <code>JdbcConnection</code>. So let’s add that.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> JdbcConnection[F[_]](resource: Resource[F, Connection]) {</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    <span class="kw">new</span> <span class="fu">SqlClient</span>(</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>      resource.<span class="fu">flatMap</span>(connection =&gt; Resource.<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span>(connection.<span class="fu">createStatement</span>())))</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>    ) {}</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a>  }</span></code></pre></div>
+<p>Well, this code will not work unless we keep this code inside the companion object of <code>SqlClient</code>. If this code needs to be in companion objecct, then the entire <code>JdbcConnection</code> should be with in the companion objet of <code>SqlClient</code>. And that, really, makes sense!.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a> <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> SqlClient[F[_]](resource: Resource[F, Statement])</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a> <span class="kw">object</span> SqlClient {</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>   <span class="kw">def</span> mk[F[_]](connectionInfo: JdbcConnection.<span class="fu">ConnectionInfo</span>)(<span class="kw">implicit</span> F: Sync[F]): SqlClient[F] =</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>     JdbcConnection.<span class="fu">mk</span>(connectionInfo).<span class="fu">statement</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>   <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> JdbcConnection[F[_]](resource: Resource[F, Connection]) {</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a>     <span class="kw">new</span> <span class="fu">SqlClient</span>(</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a>       resource.<span class="fu">flatMap</span>(connection =&gt; Resource.<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span>(connection.<span class="fu">createStatement</span>())))</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a>     ) {}</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>   }</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true"></a>   <span class="kw">object</span> JdbcConnection {</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true"></a>     <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> <span class="fu">ConnectionInfo</span>(</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true"></a>       username: String,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true"></a>       password: String,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true"></a>       url: String,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true"></a>       driverName: DownstreamSystem.<span class="fu">Jdbc</span>.<span class="fu">EngineType</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true"></a>     )</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true"></a></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true"></a>     <span class="kw">def</span> mk[F[_]: Sync](connectionInfo: ConnectionInfo): JdbcConnection[F] =</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true"></a>       <span class="kw">new</span> <span class="fu">JdbcConnection</span>(</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true"></a>         Resource</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true"></a>           .<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span> {</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true"></a>            Class.<span class="fu">forName</span>(connectionInfo.<span class="fu">driverName</span>.<span class="fu">name</span>)</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true"></a>            DriverManager.<span class="fu">getConnection</span>(connectionInfo.<span class="fu">url</span>, connectionInfo.<span class="fu">username</span>, connectionInfo.<span class="fu">password</span>)</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true"></a>          })</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true"></a>      ) {}   </span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true"></a>   }  </span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true"></a> }</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true"></a></span></code></pre></div>
+<p>I think that’s our base. We still haven’t looked at using any of this, but you can imagine it as <code>SqlClient.mk[IO]</code>, but we can’t run any query with it.</p>
+<p>So here is the (almost) final bit. Define a select query function in <code>SqlClient</code></p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a><span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> SqlClient[F[_]](resource: Resource[F, Statement]) {</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">select</span>(</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>    query: String</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>  )(<span class="kw">implicit</span> F: Sync[F], C: Stream.<span class="fu">Compiler</span>[F, F]): F[List[Row]] =</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>    resource</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>      .<span class="fu">use</span>(</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a>        r =&gt;</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true"></a>          Sync[F]</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true"></a>            .<span class="fu">delay</span>(r.<span class="fu">executeQuery</span>(query))</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true"></a>            .<span class="fu">flatMap</span>(</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true"></a>              resultSet =&gt; ??? <span class="co">// I hate resultSet, let's see what we can do with ResultSet</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true"></a>            )</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true"></a>      )</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true"></a> }</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true"></a> <span class="kw">object</span> SqlClient {</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true"></a>  <span class="kw">type</span> Row = Map[String, AnyRef]</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true"></a>  <span class="co">// ...</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true"></a> }</span></code></pre></div>
+<p>Well we haven’t got everything in place. We just tried to implement <code>select</code>, and we know the return type <code>F[List[Row]]</code>. <code>Row</code> is as simple as <code>Map[String, AnyRef]</code>. Example: <code>Map("age" -&gt; 20, "country</code>" : “usa”)`.</p>
+<p>Sure, how do we convert <code>java.sql.ResultSet</code> to <code>List[Row]</code> ? Well, the best answer is, it should be from <code>java.sql.ResultSet</code> to <code>fs2.Stream[F, Row]</code>. Why? There can be numerous number of rows and it cannot be collected to memory. Hence it’s a stream. It’s a stream under an effect <code>F</code> representing <code>IO</code>.</p>
+<p>In functional programming terms, it is a corecursion, that recognise it is an <code>unfold</code> operation where we build up the structure from an intitial resultSet state (i.e, the famous resultSet.next()).</p>
+<p>This is probably the time, developers who are not familiar with Functional Programming has that moment of table-flip. However, I still request you to give me a bit more time before you flip.</p>
+<p>Oversimplifying a few things here, Ther are two main types of recursions out there. Unfolding, and then folding. Let’s call it as “recursion” and “corecursion” respectively.</p>
+<p>A corecursion is still a recursion, but it is building the data - streams, and a recursion will terminate the recursion to a single point - Example: Sum of a list of Integers.</p>
+<p>Thats a bit wordy. Anyway, let’s we have a similar pattern to follow for <code>ResultSet</code>. Who wouldn’t want “consistency” in the code base.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">JdbcResultSet</span>(resultSet: ResultSet)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>  <span class="kw">object</span> ResultSet {</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>    <span class="co">// Now we move the Row from SqlClient Companion object to here.</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>    <span class="co">// Placement of code at the right place is super important in my opinion.</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a>    <span class="kw">type</span> Row = Map[String, AnyRef]</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true"></a>    <span class="kw">def</span> <span class="fu">from</span>(resultSet: ResultSet): JdbcResultSet =</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true"></a>      <span class="kw">new</span> <span class="fu">JdbcResultSet</span>(resultSet) {} </span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true"></a>  }</span></code></pre></div>
+<p>Let’s build the <code>unfold</code> of <code>ResultSet</code> to form a <code>Stream[F, Row]</code> (collection of rows). The best place to keep this function is the companion object of <code>JdbcResultSet</code>.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a>  <span class="kw">object</span> ResultSet {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>    <span class="co">// Now we move the Row from SqlClient Companion object to here.</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>    <span class="co">// Placement of code is super important in my opinion.</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a>    <span class="kw">type</span> Row = Map[String, AnyRef]</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true"></a>    <span class="kw">def</span> <span class="fu">from</span>(resultSet: ResultSet): JdbcResultSet =</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true"></a>      <span class="kw">new</span> <span class="fu">JdbcResultSet</span>(resultSet) {} </span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true"></a>    <span class="co">// Have a look at the difference between Stream.unfoldLoop and Stream.unfold</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true"></a>    <span class="co">// The latter skips the current chunk of data in the output stream if next state (resultSet.next) is absent.</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true"></a>    <span class="co">// The former keeps the current chunk of data in the output stream even if next state (resultSet.next)is absent.</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true"></a>    <span class="co">// Initial state is resultSet.next()</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true"></a>    <span class="co">// if present, return (row, resultSet.next().toOption)</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true"></a>    <span class="co">// if absent, return (row, None)</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true"></a>    <span class="co">// and the co-recursion continues.</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true"></a>    <span class="kw">def</span> rows[F[_]]: Stream[F, JdbcResultSet.<span class="fu">Row</span>] =</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true"></a>      Stream.<span class="fu">unfoldLoop</span>(resultSet.<span class="fu">next</span>())(</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true"></a>        hasMore =&gt;</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true"></a>          <span class="kw">if</span> (hasMore) {</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true"></a>            <span class="kw">val</span> metadata: ResultSetMetaData =</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true"></a>              resultSet.<span class="fu">getMetaData</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true"></a></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true"></a>            <span class="kw">val</span> columnNames =</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true"></a>              <span class="kw">for</span> (i &lt;- <span class="dv">1</span> to metadata.<span class="fu">getColumnCount</span>) <span class="kw">yield</span> metadata.<span class="fu">getColumnName</span>(i)</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true"></a>            <span class="kw">val</span> row = </span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true"></a>              (<span class="kw">for</span> (c &lt;- columnNames) <span class="kw">yield</span> c -&gt; resultSet.<span class="fu">getObject</span>(c)).<span class="fu">toMap</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true"></a>            (row, <span class="kw">if</span> (resultSet.<span class="fu">next</span>()) Some(<span class="kw">true</span>) <span class="kw">else</span> None)</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true"></a>          } <span class="kw">else</span> (Map.<span class="fu">empty</span>, None)</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true"></a>      )  </span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true"></a>  }</span></code></pre></div>
+<p>I think we are done. Let’s implement select again.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">select</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>    query: String</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>  )(<span class="kw">implicit</span> F: Sync[F], C: Stream.<span class="fu">Compiler</span>[F, F]): F[List[SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>]] =</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>    resource</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>      .<span class="fu">use</span>(</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true"></a>        r =&gt;</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a>          Sync[F]</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a>            .<span class="fu">delay</span>(r.<span class="fu">executeQuery</span>(query))</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true"></a>            .<span class="fu">flatMap</span>(</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true"></a>              resultSet =&gt; SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">from</span>(resultSet).<span class="fu">rows</span>.<span class="fu">compile</span>.<span class="fu">toList</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true"></a>            )</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true"></a>      )</span></code></pre></div>
+<h3 id="we-all-love-non-emptiness-in-type">We all love non-emptiness in type</h3>
+<p>Let’s implement selectNonEmpty, that should return <code>NonEmptyList</code> of rows, and the types tell you this infact, and you don’t need to worry of empty result at call-site.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">selectNonEmpty</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>    query: String</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  )(<span class="kw">implicit</span> F: Sync[F], C: Stream.<span class="fu">Compiler</span>[F, F]): F[NonEmptyList[SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>]] =</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>    <span class="fu">select</span>(query)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>      .<span class="fu">flatMap</span>(</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>        list =&gt;</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>          NonEmptyList.<span class="fu">fromList</span>(list) <span class="kw">match</span> {</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true"></a>            <span class="kw">case</span> Some(value) =&gt;</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true"></a>              Sync[F].<span class="fu">pure</span>(value)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true"></a>            <span class="kw">case</span> None =&gt;</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true"></a>              Sync[F].<span class="fu">raiseError</span>(<span class="kw">new</span> RuntimeException(s<span class="st">&quot;Zero results returned for ${query}&quot;</span>))</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true"></a>          }</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true"></a>      )</span></code></pre></div>
+<h3 id="lets-type-the-stuff">Let’s type the stuff</h3>
+<p>Well, instead of a <code>Row</code>, why can’t it be a proper type, example, a <code>Customer</code> case class.</p>
+<p>If you are not familiar with <code>zio-config</code>, I kindly recommend refering the documentation. https://zio.github.io/zio-config/</p>
+<p><code>Descriptor</code> below belongs to <code>zio-config</code></p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>  </span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">{{{</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>   <span class="co">*</span>  case class Customer<span class="co">(</span>age<span class="co">:</span> Int<span class="co">)</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true"></a>   <span class="co">*</span>  SqlClient<span class="co">.</span>mk<span class="co">(</span>connectionInfo<span class="co">).</span>selectA<span class="co">[</span>Customer<span class="co">](</span>query<span class="co">)</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">}}}</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true"></a>   <span class="co">*</span> returns a non<span class="co">-</span>empty list of Customer<span class="co">.</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true"></a>  <span class="kw">def</span> selectA[A: Descriptor](query: String)(<span class="kw">implicit</span> F: Sync[F]): F[NonEmptyList[A]] =</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true"></a>    <span class="fu">selectNonEmpty</span>(query).<span class="fu">flatMap</span>(</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true"></a>      results =&gt;</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true"></a>        results.<span class="fu">traverse</span>(</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true"></a>          row =&gt;</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true"></a>            SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>.<span class="fu">to</span>[A](row) <span class="kw">match</span> {</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true"></a>              <span class="kw">case</span> <span class="fu">Left</span>(value)  =&gt; Sync[F].<span class="fu">raiseError</span>(<span class="kw">new</span> RuntimeException(value))</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true"></a>              <span class="kw">case</span> <span class="fu">Right</span>(value) =&gt; Sync[F].<span class="fu">pure</span>(value)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true"></a>            }</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true"></a>        )</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true"></a>    )</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a>  <span class="kw">type</span> Row = Map[String, AnyRef]</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a>  <span class="kw">object</span> Row {</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a>    <span class="kw">def</span> to[A: Descriptor](row: Row): Either[String, A] = {</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a>      <span class="kw">val</span> source = ConfigSource.<span class="fu">fromMap</span>(row.<span class="fu">mapValues</span>(_.<span class="fu">toString</span>))</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a>      <span class="fu">read</span>(descriptor[A] from source).<span class="fu">leftMap</span>(_.<span class="fu">nonPrettyPrintedString</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a>    }</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a>  }</span></code></pre></div>
+<h3 id="lets-play-with-resources">Let’s play with resources</h3>
+<p>How do we handle the case where we have multiple small queries that should use the same <code>Statement</code> (and hence the same <code>Connection</code> under the hood) ?</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>  <span class="kw">def</span> execute[A](queries: String*)(<span class="kw">implicit</span> F: Sync[F]): F[Unit] =</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>    resource</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a>      .<span class="fu">use</span>(</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a>        statement =&gt;</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a>          queries.<span class="fu">toList</span>.<span class="fu">traverse</span>[F, Unit](</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>            query =&gt; Sync[F].<span class="fu">delay</span>(statement.<span class="fu">execute</span>(query))</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a>          )</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a>      )</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true"></a>      .<span class="fu">void</span></span></code></pre></div>
+<p>How do we have handle multiple long running queries and each one of them needs its connection and statement ?</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a>  <span class="co">// statement and then the connection will be closed after running each query</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>  <span class="kw">def</span> executeLongRunningQueries[A](queries: String*)(<span class="kw">implicit</span> F: Sync[F]): F[Unit] =</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>    queries.<span class="fu">toList</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>      .<span class="fu">traverse</span>[F, Unit](query =&gt; resource.<span class="fu">use</span>(s =&gt; Sync[F].<span class="fu">delay</span>(s.<span class="fu">execute</span>(query))))</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>      .<span class="fu">void</span></span></code></pre></div>
+<h2 id="lets-sum-it-up">Let’s sum it up</h2>
+<div class="sourceCode" id="cb14"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">effect</span>.<span class="fu">Resource</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">effect</span>.<span class="fu">Sync</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a><span class="kw">import</span> java.<span class="fu">sql</span>.<span class="fu">DriverManager</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a><span class="kw">import</span> java.<span class="fu">sql</span>.<span class="fu">Connection</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a><span class="kw">import</span> java.<span class="fu">sql</span>.<span class="fu">ResultSet</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true"></a><span class="kw">import</span> java.<span class="fu">sql</span>.<span class="fu">Statement</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">syntax</span>.<span class="fu">traverse</span>._</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">instances</span>.<span class="fu">list</span>._</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true"></a><span class="kw">import</span> fs2.<span class="fu">Stream</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true"></a><span class="kw">import</span> java.<span class="fu">sql</span>.<span class="fu">ResultSetMetaData</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true"></a><span class="kw">import</span> zio.<span class="fu">config</span>._</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true"></a><span class="kw">import</span> zio.<span class="fu">config</span>.<span class="fu">magnolia</span>._</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">syntax</span>.<span class="fu">flatMap</span>._</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">syntax</span>.<span class="fu">functor</span>._</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">data</span>.<span class="fu">NonEmptyList</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true"></a><span class="kw">import</span> com.<span class="fu">thaj</span>.<span class="fu">safe</span>.<span class="fu">string</span>.<span class="fu">interpolator</span>._</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true"></a><span class="kw">import</span> cats.<span class="fu">syntax</span>.<span class="fu">either</span>._</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true"></a></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true"></a><span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> SqlClient[F[_]](resource: Resource[F, Statement]) {</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true"></a></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">{{{</span></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true"></a>   <span class="co">*</span>   SqlClient<span class="co">.</span>mk<span class="co">(</span>connectionInfo<span class="co">).</span>select<span class="co">(&quot;</span>select <span class="co">*</span> from tablename<span class="co">&quot;)</span></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">}}}</span></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true"></a>   <span class="co">*</span> returns a list <span class="co">(</span>can be empty list<span class="co">)</span> of rows<span class="co">.</span></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">select</span>(</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true"></a>    query: String</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true"></a>  )(<span class="kw">implicit</span> F: Sync[F], C: Stream.<span class="fu">Compiler</span>[F, F]): F[List[SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>]] =</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true"></a>    resource</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true"></a>      .<span class="fu">use</span>(</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true"></a>        r =&gt;</span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true"></a>          Sync[F]</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true"></a>            .<span class="fu">delay</span>(r.<span class="fu">executeQuery</span>(query))</span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true"></a>            .<span class="fu">flatMap</span>(</span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true"></a>              resultSet =&gt; SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">from</span>(resultSet).<span class="fu">rows</span>.<span class="fu">compile</span>.<span class="fu">toList</span></span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true"></a>            )</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true"></a>      )</span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true"></a></span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">{{{</span></span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true"></a>   <span class="co">*</span>   SqlClient<span class="co">.</span>mk<span class="co">(</span>connectionInfo<span class="co">).</span>select<span class="co">(&quot;</span>select <span class="co">*</span> from tablename<span class="co">&quot;)</span></span>
+<span id="cb14-45"><a href="#cb14-45" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">}}}</span></span>
+<span id="cb14-46"><a href="#cb14-46" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb14-47"><a href="#cb14-47" aria-hidden="true"></a>   <span class="co">*</span> returns a non<span class="co">-</span>empty list of rows<span class="co">.</span></span>
+<span id="cb14-48"><a href="#cb14-48" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-49"><a href="#cb14-49" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">selectNonEmpty</span>(</span>
+<span id="cb14-50"><a href="#cb14-50" aria-hidden="true"></a>    query: String</span>
+<span id="cb14-51"><a href="#cb14-51" aria-hidden="true"></a>  )(<span class="kw">implicit</span> F: Sync[F], C: Stream.<span class="fu">Compiler</span>[F, F]): F[NonEmptyList[SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>]] =</span>
+<span id="cb14-52"><a href="#cb14-52" aria-hidden="true"></a>    <span class="fu">select</span>(query)</span>
+<span id="cb14-53"><a href="#cb14-53" aria-hidden="true"></a>      .<span class="fu">flatMap</span>(</span>
+<span id="cb14-54"><a href="#cb14-54" aria-hidden="true"></a>        list =&gt;</span>
+<span id="cb14-55"><a href="#cb14-55" aria-hidden="true"></a>          NonEmptyList.<span class="fu">fromList</span>(list) <span class="kw">match</span> {</span>
+<span id="cb14-56"><a href="#cb14-56" aria-hidden="true"></a>            <span class="kw">case</span> Some(value) =&gt;</span>
+<span id="cb14-57"><a href="#cb14-57" aria-hidden="true"></a>              Sync[F].<span class="fu">pure</span>(value)</span>
+<span id="cb14-58"><a href="#cb14-58" aria-hidden="true"></a>            <span class="kw">case</span> None =&gt;</span>
+<span id="cb14-59"><a href="#cb14-59" aria-hidden="true"></a>              Sync[F].<span class="fu">raiseError</span>(<span class="kw">new</span> RuntimeException(s<span class="st">&quot;Zero results returned for ${query}&quot;</span>))</span>
+<span id="cb14-60"><a href="#cb14-60" aria-hidden="true"></a>          }</span>
+<span id="cb14-61"><a href="#cb14-61" aria-hidden="true"></a>      )</span>
+<span id="cb14-62"><a href="#cb14-62" aria-hidden="true"></a></span>
+<span id="cb14-63"><a href="#cb14-63" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-64"><a href="#cb14-64" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb14-65"><a href="#cb14-65" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">{{{</span></span>
+<span id="cb14-66"><a href="#cb14-66" aria-hidden="true"></a>   <span class="co">*</span>  case class Customer<span class="co">(</span>age<span class="co">:</span> Int<span class="co">)</span></span>
+<span id="cb14-67"><a href="#cb14-67" aria-hidden="true"></a>   <span class="co">*</span>  SqlClient<span class="co">.</span>mk<span class="co">(</span>connectionInfo<span class="co">).</span>selectA<span class="co">[</span>Customer<span class="co">](</span>query<span class="co">)</span></span>
+<span id="cb14-68"><a href="#cb14-68" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">}}}</span></span>
+<span id="cb14-69"><a href="#cb14-69" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb14-70"><a href="#cb14-70" aria-hidden="true"></a>   <span class="co">*</span> returns a non<span class="co">-</span>empty list of Customer<span class="co">.</span></span>
+<span id="cb14-71"><a href="#cb14-71" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-72"><a href="#cb14-72" aria-hidden="true"></a>  <span class="kw">def</span> selectA[A: Descriptor](query: String)(<span class="kw">implicit</span> F: Sync[F]): F[NonEmptyList[A]] =</span>
+<span id="cb14-73"><a href="#cb14-73" aria-hidden="true"></a>    <span class="fu">selectNonEmpty</span>(query).<span class="fu">flatMap</span>(</span>
+<span id="cb14-74"><a href="#cb14-74" aria-hidden="true"></a>      results =&gt;</span>
+<span id="cb14-75"><a href="#cb14-75" aria-hidden="true"></a>        results.<span class="fu">traverse</span>(</span>
+<span id="cb14-76"><a href="#cb14-76" aria-hidden="true"></a>          row =&gt;</span>
+<span id="cb14-77"><a href="#cb14-77" aria-hidden="true"></a>            SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>.<span class="fu">to</span>[A](row) <span class="kw">match</span> {</span>
+<span id="cb14-78"><a href="#cb14-78" aria-hidden="true"></a>              <span class="kw">case</span> <span class="fu">Left</span>(value)  =&gt; Sync[F].<span class="fu">raiseError</span>(<span class="kw">new</span> RuntimeException(value))</span>
+<span id="cb14-79"><a href="#cb14-79" aria-hidden="true"></a>              <span class="kw">case</span> <span class="fu">Right</span>(value) =&gt; Sync[F].<span class="fu">pure</span>(value)</span>
+<span id="cb14-80"><a href="#cb14-80" aria-hidden="true"></a>            }</span>
+<span id="cb14-81"><a href="#cb14-81" aria-hidden="true"></a>        )</span>
+<span id="cb14-82"><a href="#cb14-82" aria-hidden="true"></a>    )</span>
+<span id="cb14-83"><a href="#cb14-83" aria-hidden="true"></a></span>
+<span id="cb14-84"><a href="#cb14-84" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-85"><a href="#cb14-85" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb14-86"><a href="#cb14-86" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">{{{</span></span>
+<span id="cb14-87"><a href="#cb14-87" aria-hidden="true"></a>   <span class="co">*</span>   SqlClient<span class="co">.</span>mk<span class="co">(</span>connectionInfo<span class="co">).</span>selectSingleton<span class="co">(&quot;</span>select <span class="co">*</span> from customers where customer_id <span class="co">=</span> <span class="co">'1'&quot;)</span></span>
+<span id="cb14-88"><a href="#cb14-88" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">}}}</span></span>
+<span id="cb14-89"><a href="#cb14-89" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb14-90"><a href="#cb14-90" aria-hidden="true"></a>   <span class="co">*</span> returns exactly one row<span class="co">.</span></span>
+<span id="cb14-91"><a href="#cb14-91" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-92"><a href="#cb14-92" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">selectSingleton</span>(query: String)(<span class="kw">implicit</span> F: Sync[F]): F[SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>] =</span>
+<span id="cb14-93"><a href="#cb14-93" aria-hidden="true"></a>    <span class="fu">selectNonEmpty</span>(query).<span class="fu">flatMap</span>({</span>
+<span id="cb14-94"><a href="#cb14-94" aria-hidden="true"></a>      <span class="kw">case</span> <span class="fu">NonEmptyList</span>(head, Nil) =&gt;</span>
+<span id="cb14-95"><a href="#cb14-95" aria-hidden="true"></a>        Sync[F].<span class="fu">pure</span>(head)</span>
+<span id="cb14-96"><a href="#cb14-96" aria-hidden="true"></a>      <span class="kw">case</span> list =&gt;</span>
+<span id="cb14-97"><a href="#cb14-97" aria-hidden="true"></a>        Sync[F].<span class="fu">raiseError</span>(</span>
+<span id="cb14-98"><a href="#cb14-98" aria-hidden="true"></a>          <span class="kw">new</span> RuntimeException(</span>
+<span id="cb14-99"><a href="#cb14-99" aria-hidden="true"></a>            s<span class="st">&quot;Multiple rows (size: ${list.size}) returned for the query ${query}. Only a single row is expected for this query.&quot;</span></span>
+<span id="cb14-100"><a href="#cb14-100" aria-hidden="true"></a>          )</span>
+<span id="cb14-101"><a href="#cb14-101" aria-hidden="true"></a>        )</span>
+<span id="cb14-102"><a href="#cb14-102" aria-hidden="true"></a>    })</span>
+<span id="cb14-103"><a href="#cb14-103" aria-hidden="true"></a></span>
+<span id="cb14-104"><a href="#cb14-104" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-105"><a href="#cb14-105" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">{{{</span></span>
+<span id="cb14-106"><a href="#cb14-106" aria-hidden="true"></a>   <span class="co">*</span>   case class Customer<span class="co">(..)</span></span>
+<span id="cb14-107"><a href="#cb14-107" aria-hidden="true"></a>   <span class="co">*</span>   SqlClient<span class="co">.</span>mk<span class="co">(</span>connectionInfo<span class="co">).</span>selectSingletonA<span class="co">[</span>Customer<span class="co">](&quot;</span>select <span class="co">*</span> from customers where customer_id <span class="co">=</span> <span class="co">'1'&quot;)</span></span>
+<span id="cb14-108"><a href="#cb14-108" aria-hidden="true"></a>   <span class="co">*</span> <span class="re">}}}</span></span>
+<span id="cb14-109"><a href="#cb14-109" aria-hidden="true"></a>   <span class="co">*</span></span>
+<span id="cb14-110"><a href="#cb14-110" aria-hidden="true"></a>   <span class="co">*</span> returns exactly one <span class="co">`</span>Customer<span class="co">`.</span></span>
+<span id="cb14-111"><a href="#cb14-111" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-112"><a href="#cb14-112" aria-hidden="true"></a>  <span class="kw">def</span> selectSingletonA[A: Descriptor](query: String)(<span class="kw">implicit</span> F: Sync[F]): F[A] =</span>
+<span id="cb14-113"><a href="#cb14-113" aria-hidden="true"></a>    <span class="fu">selectSingleton</span>(query).<span class="fu">flatMap</span>(</span>
+<span id="cb14-114"><a href="#cb14-114" aria-hidden="true"></a>      row =&gt;</span>
+<span id="cb14-115"><a href="#cb14-115" aria-hidden="true"></a>        SqlClient.<span class="fu">JdbcResultSet</span>.<span class="fu">Row</span>.<span class="fu">to</span>[A](row) <span class="kw">match</span> {</span>
+<span id="cb14-116"><a href="#cb14-116" aria-hidden="true"></a>          <span class="kw">case</span> <span class="fu">Left</span>(value)  =&gt; Sync[F].<span class="fu">raiseError</span>(<span class="kw">new</span> RuntimeException(value))</span>
+<span id="cb14-117"><a href="#cb14-117" aria-hidden="true"></a>          <span class="kw">case</span> <span class="fu">Right</span>(value) =&gt; Sync[F].<span class="fu">pure</span>(value)</span>
+<span id="cb14-118"><a href="#cb14-118" aria-hidden="true"></a>        }</span>
+<span id="cb14-119"><a href="#cb14-119" aria-hidden="true"></a>    )</span>
+<span id="cb14-120"><a href="#cb14-120" aria-hidden="true"></a></span>
+<span id="cb14-121"><a href="#cb14-121" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-122"><a href="#cb14-122" aria-hidden="true"></a>   <span class="co">*</span> A single connection<span class="co">-&gt;</span>statement for potentially multiple queries<span class="co">.</span></span>
+<span id="cb14-123"><a href="#cb14-123" aria-hidden="true"></a>   <span class="co">*</span> Note<span class="co">:</span> These are not in a transaction<span class="co">.</span></span>
+<span id="cb14-124"><a href="#cb14-124" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-125"><a href="#cb14-125" aria-hidden="true"></a>  <span class="kw">def</span> execute[A](queries: String*)(<span class="kw">implicit</span> F: Sync[F]): F[Unit] =</span>
+<span id="cb14-126"><a href="#cb14-126" aria-hidden="true"></a>    resource</span>
+<span id="cb14-127"><a href="#cb14-127" aria-hidden="true"></a>      .<span class="fu">use</span>(</span>
+<span id="cb14-128"><a href="#cb14-128" aria-hidden="true"></a>        statement =&gt;</span>
+<span id="cb14-129"><a href="#cb14-129" aria-hidden="true"></a>          queries.<span class="fu">toList</span>.<span class="fu">traverse</span>[F, Unit](</span>
+<span id="cb14-130"><a href="#cb14-130" aria-hidden="true"></a>            query =&gt; Sync[F].<span class="fu">delay</span>(statement.<span class="fu">execute</span>(query))</span>
+<span id="cb14-131"><a href="#cb14-131" aria-hidden="true"></a>          )</span>
+<span id="cb14-132"><a href="#cb14-132" aria-hidden="true"></a>      )</span>
+<span id="cb14-133"><a href="#cb14-133" aria-hidden="true"></a>      .<span class="fu">void</span></span>
+<span id="cb14-134"><a href="#cb14-134" aria-hidden="true"></a></span>
+<span id="cb14-135"><a href="#cb14-135" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-136"><a href="#cb14-136" aria-hidden="true"></a>   <span class="co">*</span> Each query will have its own connection<span class="co">-&gt;</span>statement resource<span class="co">.</span></span>
+<span id="cb14-137"><a href="#cb14-137" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-138"><a href="#cb14-138" aria-hidden="true"></a>  <span class="kw">def</span> executeLongRunningQueries[A](queries: String*)(<span class="kw">implicit</span> F: Sync[F]): F[Unit] =</span>
+<span id="cb14-139"><a href="#cb14-139" aria-hidden="true"></a>    queries.<span class="fu">toList</span></span>
+<span id="cb14-140"><a href="#cb14-140" aria-hidden="true"></a>      .<span class="fu">traverse</span>[F, Unit](query =&gt; resource.<span class="fu">use</span>(s =&gt; Sync[F].<span class="fu">delay</span>(s.<span class="fu">execute</span>(query))))</span>
+<span id="cb14-141"><a href="#cb14-141" aria-hidden="true"></a>      .<span class="fu">void</span></span>
+<span id="cb14-142"><a href="#cb14-142" aria-hidden="true"></a></span>
+<span id="cb14-143"><a href="#cb14-143" aria-hidden="true"></a>  <span class="co">/**</span></span>
+<span id="cb14-144"><a href="#cb14-144" aria-hidden="true"></a>   <span class="co">*</span>  Delete table or view</span>
+<span id="cb14-145"><a href="#cb14-145" aria-hidden="true"></a>   <span class="co">*/</span></span>
+<span id="cb14-146"><a href="#cb14-146" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">delete</span>(objectName: String)(<span class="kw">implicit</span> F: Sync[F]): F[Unit] =</span>
+<span id="cb14-147"><a href="#cb14-147" aria-hidden="true"></a>    <span class="fu">execute</span>(ss<span class="st">&quot;DROP TABLE IF EXISTS ${objectName}&quot;</span>.<span class="fu">string</span>)</span>
+<span id="cb14-148"><a href="#cb14-148" aria-hidden="true"></a></span>
+<span id="cb14-149"><a href="#cb14-149" aria-hidden="true"></a>}</span>
+<span id="cb14-150"><a href="#cb14-150" aria-hidden="true"></a></span>
+<span id="cb14-151"><a href="#cb14-151" aria-hidden="true"></a><span class="kw">object</span> SqlClient {</span>
+<span id="cb14-152"><a href="#cb14-152" aria-hidden="true"></a>  <span class="kw">def</span> mk[F[_]](connectionInfo: JdbcConnection.<span class="fu">ConnectionInfo</span>)(<span class="kw">implicit</span> F: Sync[F]): SqlClient[F] =</span>
+<span id="cb14-153"><a href="#cb14-153" aria-hidden="true"></a>    JdbcConnection.<span class="fu">mk</span>(connectionInfo).<span class="fu">statement</span></span>
+<span id="cb14-154"><a href="#cb14-154" aria-hidden="true"></a></span>
+<span id="cb14-155"><a href="#cb14-155" aria-hidden="true"></a>  <span class="co">// An immutable resultSet</span></span>
+<span id="cb14-156"><a href="#cb14-156" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">JdbcResultSet</span>(resultSet: ResultSet) {</span>
+<span id="cb14-157"><a href="#cb14-157" aria-hidden="true"></a></span>
+<span id="cb14-158"><a href="#cb14-158" aria-hidden="true"></a>    <span class="kw">def</span> rows[F[_]]: Stream[F, JdbcResultSet.<span class="fu">Row</span>] =</span>
+<span id="cb14-159"><a href="#cb14-159" aria-hidden="true"></a>      <span class="co">//val newResultSet = resultSet</span></span>
+<span id="cb14-160"><a href="#cb14-160" aria-hidden="true"></a>      Stream.<span class="fu">unfoldLoop</span>(resultSet.<span class="fu">next</span>())(</span>
+<span id="cb14-161"><a href="#cb14-161" aria-hidden="true"></a>        hasMore =&gt;</span>
+<span id="cb14-162"><a href="#cb14-162" aria-hidden="true"></a>          <span class="kw">if</span> (hasMore) {</span>
+<span id="cb14-163"><a href="#cb14-163" aria-hidden="true"></a>            <span class="kw">val</span> metadata: ResultSetMetaData =</span>
+<span id="cb14-164"><a href="#cb14-164" aria-hidden="true"></a>              resultSet.<span class="fu">getMetaData</span></span>
+<span id="cb14-165"><a href="#cb14-165" aria-hidden="true"></a></span>
+<span id="cb14-166"><a href="#cb14-166" aria-hidden="true"></a>            <span class="kw">val</span> columnNames =</span>
+<span id="cb14-167"><a href="#cb14-167" aria-hidden="true"></a>              <span class="kw">for</span> (i &lt;- <span class="dv">1</span> to metadata.<span class="fu">getColumnCount</span>) <span class="kw">yield</span> metadata.<span class="fu">getColumnName</span>(i)</span>
+<span id="cb14-168"><a href="#cb14-168" aria-hidden="true"></a>            <span class="kw">val</span> row = (<span class="kw">for</span> (c &lt;- columnNames) <span class="kw">yield</span> c -&gt; resultSet.<span class="fu">getObject</span>(c)).<span class="fu">toMap</span></span>
+<span id="cb14-169"><a href="#cb14-169" aria-hidden="true"></a>            (row, <span class="kw">if</span> (resultSet.<span class="fu">next</span>()) Some(<span class="kw">true</span>) <span class="kw">else</span> None)</span>
+<span id="cb14-170"><a href="#cb14-170" aria-hidden="true"></a>          } <span class="kw">else</span> (Map.<span class="fu">empty</span>, None)</span>
+<span id="cb14-171"><a href="#cb14-171" aria-hidden="true"></a>      )</span>
+<span id="cb14-172"><a href="#cb14-172" aria-hidden="true"></a>  }</span>
+<span id="cb14-173"><a href="#cb14-173" aria-hidden="true"></a></span>
+<span id="cb14-174"><a href="#cb14-174" aria-hidden="true"></a>  <span class="kw">object</span> JdbcResultSet {</span>
+<span id="cb14-175"><a href="#cb14-175" aria-hidden="true"></a>    <span class="kw">type</span> Row = Map[String, AnyRef]</span>
+<span id="cb14-176"><a href="#cb14-176" aria-hidden="true"></a></span>
+<span id="cb14-177"><a href="#cb14-177" aria-hidden="true"></a>    <span class="kw">def</span> <span class="fu">from</span>(resultSet: ResultSet): JdbcResultSet =</span>
+<span id="cb14-178"><a href="#cb14-178" aria-hidden="true"></a>      <span class="kw">new</span> <span class="fu">JdbcResultSet</span>(resultSet) {}</span>
+<span id="cb14-179"><a href="#cb14-179" aria-hidden="true"></a></span>
+<span id="cb14-180"><a href="#cb14-180" aria-hidden="true"></a>    <span class="kw">object</span> Row {</span>
+<span id="cb14-181"><a href="#cb14-181" aria-hidden="true"></a>      <span class="kw">def</span> to[A: Descriptor](row: Row): Either[String, A] = {</span>
+<span id="cb14-182"><a href="#cb14-182" aria-hidden="true"></a>        <span class="kw">val</span> source = ConfigSource.<span class="fu">fromMap</span>(row.<span class="fu">mapValues</span>(_.<span class="fu">toString</span>))</span>
+<span id="cb14-183"><a href="#cb14-183" aria-hidden="true"></a>        <span class="fu">read</span>(descriptor[A] from source).<span class="fu">leftMap</span>(_.<span class="fu">nonPrettyPrintedString</span>)</span>
+<span id="cb14-184"><a href="#cb14-184" aria-hidden="true"></a>      }</span>
+<span id="cb14-185"><a href="#cb14-185" aria-hidden="true"></a>    }</span>
+<span id="cb14-186"><a href="#cb14-186" aria-hidden="true"></a>  }</span>
+<span id="cb14-187"><a href="#cb14-187" aria-hidden="true"></a></span>
+<span id="cb14-188"><a href="#cb14-188" aria-hidden="true"></a>  <span class="kw">abstract</span> <span class="kw">sealed</span> <span class="kw">case</span> <span class="kw">class</span> JdbcConnection[F[_]](resource: Resource[F, Connection]) {</span>
+<span id="cb14-189"><a href="#cb14-189" aria-hidden="true"></a>    <span class="kw">def</span> <span class="fu">statement</span>(<span class="kw">implicit</span> F: Sync[F]): SqlClient[F] =</span>
+<span id="cb14-190"><a href="#cb14-190" aria-hidden="true"></a>      <span class="kw">new</span> <span class="fu">SqlClient</span>(</span>
+<span id="cb14-191"><a href="#cb14-191" aria-hidden="true"></a>        resource.<span class="fu">flatMap</span>(connection =&gt; Resource.<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span>(connection.<span class="fu">createStatement</span>())))</span>
+<span id="cb14-192"><a href="#cb14-192" aria-hidden="true"></a>      ) {}</span>
+<span id="cb14-193"><a href="#cb14-193" aria-hidden="true"></a>  }</span>
+<span id="cb14-194"><a href="#cb14-194" aria-hidden="true"></a></span>
+<span id="cb14-195"><a href="#cb14-195" aria-hidden="true"></a>  <span class="kw">object</span> JdbcConnection {</span>
+<span id="cb14-196"><a href="#cb14-196" aria-hidden="true"></a>    <span class="kw">final</span> <span class="kw">case</span> <span class="kw">class</span> <span class="fu">ConnectionInfo</span>(</span>
+<span id="cb14-197"><a href="#cb14-197" aria-hidden="true"></a>      username: String,</span>
+<span id="cb14-198"><a href="#cb14-198" aria-hidden="true"></a>      password: String,</span>
+<span id="cb14-199"><a href="#cb14-199" aria-hidden="true"></a>      url: String,</span>
+<span id="cb14-200"><a href="#cb14-200" aria-hidden="true"></a>      driverName: DownstreamSystem.<span class="fu">Jdbc</span>.<span class="fu">EngineType</span></span>
+<span id="cb14-201"><a href="#cb14-201" aria-hidden="true"></a>    )</span>
+<span id="cb14-202"><a href="#cb14-202" aria-hidden="true"></a></span>
+<span id="cb14-203"><a href="#cb14-203" aria-hidden="true"></a>    <span class="kw">def</span> mk[F[_]: Sync](connectionInfo: ConnectionInfo): JdbcConnection[F] =</span>
+<span id="cb14-204"><a href="#cb14-204" aria-hidden="true"></a>      <span class="kw">new</span> <span class="fu">JdbcConnection</span>(</span>
+<span id="cb14-205"><a href="#cb14-205" aria-hidden="true"></a>        Resource</span>
+<span id="cb14-206"><a href="#cb14-206" aria-hidden="true"></a>          .<span class="fu">fromAutoCloseable</span>(Sync[F].<span class="fu">delay</span> {</span>
+<span id="cb14-207"><a href="#cb14-207" aria-hidden="true"></a>            Class.<span class="fu">forName</span>(connectionInfo.<span class="fu">driverName</span>.<span class="fu">name</span>)</span>
+<span id="cb14-208"><a href="#cb14-208" aria-hidden="true"></a>            DriverManager.<span class="fu">getConnection</span>(connectionInfo.<span class="fu">url</span>, connectionInfo.<span class="fu">username</span>, connectionInfo.<span class="fu">password</span>)</span>
+<span id="cb14-209"><a href="#cb14-209" aria-hidden="true"></a>          })</span>
+<span id="cb14-210"><a href="#cb14-210" aria-hidden="true"></a>      ) {}</span>
+<span id="cb14-211"><a href="#cb14-211" aria-hidden="true"></a>  }</span>
+<span id="cb14-212"><a href="#cb14-212" aria-hidden="true"></a>}</span>
+<span id="cb14-213"><a href="#cb14-213" aria-hidden="true"></a></span></code></pre></div>
+<p>That’s your functional JDBC API !</p>
+    </section>
+</article>
+
+    </main>
+
+    <footer>
+        Site proudly generated by
+        <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+    </footer>
+</body>
+
+</html>
