@@ -172,14 +172,14 @@ where we build up the structure from an intitial resultSet state (i.e, the famou
 This is probably the time, developers who are not familiar with Functional Programming has that moment of table-flip. 
 However, I still request you to give me a bit more time before you flip.
 
-Oversimplifying a few things here, Ther are two main types of recursions out there. Unfolding, and then folding.
+Oversimplifying a few things here, there are two main types of recursions. Unfolding, and folding.
 Let's call it as "recursion" and "corecursion" respectively.
 
 A corecursion is still a recursion, but it is building the data - streams, 
 and a recursion will terminate the recursion to a single point - Example: Sum of a list of Integers.
 
-Thats a bit wordy. Anyway, let's we have a similar pattern to follow for `ResultSet`.
-Who wouldn't want "consistency" in the code base.
+Thats a bit wordy. Anyway, let's have our own `JdbcResultSet` similar to our above patterns.
+Who wouldn't want a "consistency" in the code base!
 
 ```scala
   abstract sealed class JdbcResultSet(resultSet: ResultSet)
@@ -400,7 +400,7 @@ abstract sealed case class SqlClient[F[_]](resource: Resource[F, Statement]) {
 
   /**
    * {{{
-   *   SqlClient.mk(connectionInfo).select("select * from tablename")
+   *   SqlClient.mk(connectionInfo).selectNonEmpty("select * from tablename")
    * }}}
    *
    * returns a non-empty list of rows.
